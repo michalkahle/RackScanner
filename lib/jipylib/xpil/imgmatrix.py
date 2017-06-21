@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 from PIL import Image
 
-from jipylib import procutl, winenv, inifile
+#from jipylib import procutl, winenv, inifile
 #http://www.pythonware.com/library/pil/handbook/introduction.htm
 
 #http://effbot.org/zone/pil-numpy.htm
@@ -261,9 +261,17 @@ class ImgMatrix(object):
         deg = 45
         dif = 15
         fn = filename # fn - original file name, filename gets changed upon retries
+
+        
+        return filename
+        
+
+
+
         while retryCount:
             log.info('read_barcode from "%s" ...' % filename)
-            p = subprocess.Popen('"%s" "%s"' % (self.barcodereader, filename), stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=ENV)
+            print('read_barcode from "%s" ...' % filename)
+            p = subprocess.Popen('dmtxread "%s"' % filename, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=ENV)
             o, e = p.communicate()
             if e:
                 log.warning('read_barcode from "%s" failed: %s' % (filename, e))

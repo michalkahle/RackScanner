@@ -7,10 +7,12 @@ import glob
 import urllib
 import shutil
 
-from jipylib import twainutl, inifile, winkeys, uploadfile, utils
-from jipylib.xpil import imgmatrix
+from jipylib import  utils #twainutl, inifile, winkeys, uploadfile,
+#from jipylib.xpil import imgmatrix
+import imp
+imgmatrix = imp.load_source('imgmatrix', 'lib/jipylib/xpil')
 
-import buttonman
+# import buttonman
 
 #ROOT = os.path.dirname(__file__)
 
@@ -194,7 +196,7 @@ INI_DEFAULTS = [ # to be saved to ini
     ('inifile_vial','avision-600-vial.ini'),
     ('port', '8080'),
     ('hostname','localhost'),
-    ('imagemagick', imgmatrix.IMAGE_MAGICK), # installation subfolder will be searched for in %ProgramFiles%, %ProgramFiles(x86)% 
+    ('imagemagick', "imgmatrix.IMAGE_MAGICK"), # installation subfolder will be searched for in %ProgramFiles%, %ProgramFiles(x86)% 
     ('appname', 'Microsoft Excel'),
     ('opencsv', 'checked'),
 ]
@@ -325,8 +327,8 @@ class PlateScanner(object):
         kwargs.setdefault('filemask', what + '%Y%m%d%H%M%S.bmp')
         try: 
             start = datetime.datetime.now()
-            c = twainutl.TwainCtl(**kwargs)
-            c.run()
+            # c = twainutl.TwainCtl(**kwargs)
+            # c.run()
             stop = datetime.datetime.now()
             print 'Scanned to file: %s (%s) <br />' % (c.filename, stop - start)
             self.bmpfilename = c.filename
