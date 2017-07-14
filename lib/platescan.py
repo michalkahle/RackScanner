@@ -196,7 +196,6 @@ INI_DEFAULTS = [ # to be saved to ini
     ('inifile_vial','avision-600-vial.ini'),
     ('port', '8080'),
     ('hostname','localhost'),
-    ('imagemagick', "imgmatrix.IMAGE_MAGICK"), # installation subfolder will be searched for in %ProgramFiles%, %ProgramFiles(x86)% 
     ('appname', 'Microsoft Excel'),
     ('opencsv', 'checked'),
 ]
@@ -517,7 +516,7 @@ class PlateScanner(object):
                 if not self.bmpfilename: # bmpfilename is not usually supplied (only when debugging)
                     self.scan_image(what='rack', **self.inipars)
                 
-                if os.path.exists(self.bmpfilename):
+                if os.paaath.exists(self.bmpfilename):
                     self.start_parser()
                     self.display_running()
                     return

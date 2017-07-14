@@ -189,16 +189,7 @@ class PlateScanStarter:
         msg = urllib.quote(buttonman.check_inis())
         if msg:
             errors.append(msg)
-        msg = imgmatrix.check_imagemagick(self.ini.get('imagemagick', imgmatrix.IMAGE_MAGICK))
-        if msg:
-            errors.append(msg)
             
-        oini = self.ini.copy()
-        if imgmatrix.IMAGE_MAGICK_FOLDER:
-            #ImageMagickFolder found on this computer, save it to ini
-            oini['imagemagickfolder'] = imgmatrix.IMAGE_MAGICK_FOLDER
-            ifile.save(oini, self.inifile)
-        
         if errors:
             self.ini['error'] = urllib.quote('\n'.join(errors))
         else:
