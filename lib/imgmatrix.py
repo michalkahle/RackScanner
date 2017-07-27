@@ -190,7 +190,7 @@ def read_barcode(well):
     if code:
         return (code, 'lsd')
     
-    code = decode_harris(well, thr_level = None)
+    code = decode_harris(well, thr_level = 128)
     if code:
         return (code, 'harris')
 
@@ -323,7 +323,10 @@ def warp(well, box, debug = False, **kwargs):
     resized = cv2.resize(warped, (12,12))
     # x, thr2 = cv2.threshold(resized, 80, 255, cv2.THRESH_BINARY)
     thr2 = threshold(resized, thr_level)
-    if border_check(thr2):
+
+    # thr2[thr2 > 0] = 1
+    if border_check_fix(thr2):
+        # thr2[thr2 > 0] = 255
         barcode = cv2.copyMakeBorder(thr2, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value = 0)
         barcode = cv2.resize(barcode, (80,80), interpolation = cv2.INTER_NEAREST)
         barcode_cl = cv2.cvtColor(barcode, cv2.COLOR_GRAY2BGR)
@@ -348,7 +351,7 @@ def warp(well, box, debug = False, **kwargs):
 
 def border_check(arr):
     size = arr.shape[0]
-    assert size == arr.shape[1] and size % 2 == 0, 'Data Matrix should be square and size even.'
+    assert size == arr.shape[1] and size % 2 == 0, 'Data Matrix should be square and of even size.'
     arr = arr > 0
     border = np.array([arr[-1,:], arr[:,0], arr[0,:], arr[:,-1]]).sum(1)
     if not np.array_equal(np.sort(border), [size / 2, size / 2, size, size]):
@@ -357,6 +360,29 @@ def border_check(arr):
     if abs(b_index[-1] - b_index[-2]) % 2 != 1:
         return False
     return True
+
+def border_check_fix(arr):
+    borders = np.array([arr[-1,:], arr[:,0], arr[0,:], arr[:,-1]])
+    borders[borders > 0] = 1 # scale down so that sums work
+    template = np.array([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                         [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+                         [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]])
+    diffs = np.array(map(lambda x: np.logical_xor(borders, x).sum(1), template))
+    wrong = diffs.min(0).sum()
+    if abs(borders.sum() - 36) > 4:
+        return False
+    elif wrong > 4:
+        return False
+    elif wrong == 0:
+        return True
+    else: # fix borders
+        borders = template[diffs.argmin(0)]
+        borders[borders > 0] = arr.max() # scale back to original value
+        arr[-1,:] = borders[0]
+        arr[:,0] = borders[1]
+        arr[0,:] = borders[2]
+        arr[:,-1] = borders[3]
+        return True
 
 def extend_contour(img):
     if img.dtype != 'uint8': img = img.astype('uint8')
