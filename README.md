@@ -7,6 +7,7 @@ Installation:
 ```
 conda create -n RackScanner python=2.7
 activate RackScanner
+conda config --add channels conda-forge
 
 ```
 todo: add .yml file  
