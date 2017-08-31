@@ -1,10 +1,6 @@
 import os
-import glob
 import logging
 from time import time
-import subprocess
-import tempfile
-from PIL import Image
 
 import numpy as np
 import cv2
@@ -12,12 +8,8 @@ from pydmtx import DataMatrix
 from scipy.ndimage import center_of_mass, label
 import pandas as pd
 import re
-from math import degrees, atan, sqrt, sin, cos
+from math import atan, sqrt
 import matplotlib.pyplot as plt
-#from jipylib import procutl, winenv, inifile
-#http://www.pythonware.com/library/pil/handbook/introduction.htm
-
-#http://effbot.org/zone/pil-numpy.htm
 from scipy import stats
 
 log = logging.getLogger('jipylib.xpil.imgmatrix')
@@ -38,49 +30,12 @@ peephole = cv2.circle(np.zeros(well_shape), well_center, 30, 1, -1)
 min_size = 65
 
 class ImgMatrix(object):
-    _argnames = ['inifile','filemask'] # instructs CmdLineWrap to assign first positional cmdline argument
-    # to inifile and the second to filemask
-    def __init__(self, filemask=None, csvfilename='', csvdir='', **kwargs):
+    def __init__(self, filemask=None, **kwargs):
         self.filemask = filemask # filename of the plate image
         self.img = cv2.imread(filemask, 0).T # we will trasverse back the well images
         self.dg = cv2.cvtColor(self.img, cv2.COLOR_GRAY2RGB)
         self.wells = self.locate_wells_by_matching()
-        # self.dm_read = DataMatrix(max_count = 1, 
-        #                          timeout = 300, 
-        #                          min_edge = 10, 
-        #                          max_edge = 32, 
-        #                          threshold = 5, 
-        #                          deviation = 10,
-        #                          shape = DataMatrix.DmtxSymbol12x12)
-        # # self.dm_read = DataMatrix()
-        self.csvfilename = csvfilename
-        self.csvdir = csvdir
-
-        filedir, base_ext = os.path.split(self.filemask)
-        base, ext = os.path.splitext(base_ext)
-        if not self.csvfilename:
-            self.csvfilename = os.path.join(self.csvdir, base + '.csv')
-        
-        self._barcodes = []
-        self._failed = []
-        
-        self._current_item = 0 # for showing the progress of the thread operation
-        self._item_count = 0
-        self.finished = False # set true upon end of the run method
-   
-    def __call__(self):
-        """For threading. Use ._current_item, ._item_count to check the progress."""
-        self.run()
-        
-    def write_csv_file(self, barcodes=[], filename=''):
-        if not barcodes:
-            barcodes = self._barcodes
-        if not filename:
-            filename = self.csvfilename
-        f = open(filename, 'w')
-        f.write('\n'.join([','.join(rcb) for rcb in barcodes]))
-        f.close()
-
+           
     def locate_wells_by_matching(self, debug = False):
         template = cv2.imread("template.png")[:,:,0]
         res = cv2.matchTemplate(self.img, template, cv2.TM_CCOEFF_NORMED)
@@ -93,18 +48,24 @@ class ImgMatrix(object):
             plt.subplot(132); plt.imshow(res)
             plt.subplot(133); plt.imshow(crop)
 
-        if(n != 96):
+        if n == 96:
+            n_rows, n_cols = 8, 12
+        elif n == 24:
+            n_rows, n_cols = 4, 6
+        else:
+            raise ValueError("%s wells detected. Should be 24 or 96." % n)
             return pd.DataFrame()
-            #raise NameError("%s wells detected. Should be 96." % n)
         arr = np.round(center_of_mass(crop, labeled, range(1, n+1))).astype(int) + b
         df = pd.DataFrame(arr, columns = ("y", "x"))
-        df["row"] = np.arange(8).repeat(12)
+        LETTERS = np.array(list('ABCDEFGH'))
+        df["row"] = LETTERS[np.arange(n_rows).repeat(n_cols)]
         df = df.sort_values(["row", 'x'])
-        df["col"] = np.tile(np.arange(12), 8)
+        df["col"] = np.tile(np.arange(1, n_cols + 1), n_rows)
         df = df.set_index(['row', 'col'], drop=True)
         return df
 
-    # def get_well_grid(self, row, col):
+    def get_well_matched(self, coo):
+        return self.img[coo.y+35:coo.y+185, coo.x+40: coo.x+190].T.copy(order = 'C')
     #     ox, oy, dx, dy = (200, 160, 212, 206)
     #     py = oy + row * dy
     #     px = ox + col * dx
@@ -112,12 +73,7 @@ class ImgMatrix(object):
     #     well[0:5, :] = 0; well[:, 0:5] = 0 # for diagnostics
     #     return well[5:, 5:].copy(order = 'F')
 
-    def get_well_matched(self, row, col):
-        coo = self.wells.loc[(row, col)]
-        return self.img[coo.y+35:coo.y+185, coo.x+40: coo.x+190].T.copy(order = 'C')
-
-    def mark_well(self, row, col, mark):
-        coo = self.wells.loc[(row, col)]
+    def mark_well(self, coo, mark):
         color = {
                 'raw' : (0,255,0),
                 'lsd' : (150,150,0),
@@ -129,38 +85,16 @@ class ImgMatrix(object):
                 }[mark]
         cv2.circle(self.dg, (coo.x+115, coo.y+110), 75, color = color, thickness = 10)
 
-    def run(self):
-        try:
-            log.info('imgmatrix begin')
-            self.read_rack()
-            self.write_csv_file()
-            log.info('imgmatrix end')
-            log.info('Result written to "%s". Barcodes found:' % self.csvfilename)
-            for b in self._barcodes:
-                log.info(b)
-            if self._failed:
-                log.error('FAILED to parse:')
-                for f in self._failed:
-                    log.error(f)
-        finally:
-            self.finished = True
-        return self._barcodes, self._failed
-
     def read_rack(self, debug = False):
-        self._barcodes = []
-        self._failed = []
         start = time()
-        for (row, col), rr in self.wells.iterrows():
-            well = self.get_well_matched(row, col)
-            code, method = read_barcode(well)
-            self._barcodes.append((row, col, code, method))
-            if code is None: 
-                self._failed.append((row, col))
-                global failed
-                failed = failed.append(pd.Series([row, col, self.filemask, well.copy()]), ignore_index=True)
-            self.mark_well(row, col, method)
-
-        s = pd.DataFrame(self._barcodes, columns=('row', 'col', 'code', 'method')).groupby('method').size()
+        self.wells = self.wells.apply(self.read_well, axis = 1)
+        fail = self.wells.loc[self.wells.method == 'failed']
+        if not fail.empty:
+            fail = fail.apply(lambda x: x.set_value('well', self.get_well_matched(x)), axis = 1)
+            fail['file'] = self.filemask
+            global failed
+            failed = pd.concat([failed, fail], axis = 1)
+        s = self.wells.groupby('method').size()
         duration = time() - start
         log.info((s, ' %.2f s' % duration))
 
@@ -173,6 +107,12 @@ class ImgMatrix(object):
         if debug: 
             plt.imshow(self.dg)
             plt.show()
+            
+    def read_well(self, coo):
+        well = self.get_well_matched(coo)
+        code, method = read_barcode(well)
+        self.mark_well(coo, method)
+        return pd.Series([coo.x, coo.y, code, method], index=['x', 'y', 'code', 'method'])
 
 def read_barcode(well):
     x, thr = cv2.threshold(well, 128, 1, cv2.THRESH_BINARY)
@@ -180,7 +120,7 @@ def read_barcode(well):
     global well_stats
     well_stats = well_stats.append({'thr_sum': thr.sum()}, ignore_index=True)
     if thr.sum() < 500:
-        return (0, 'empty')
+        return ('empty', 'empty')
 
     code = decode_raw(well)
     if code:
@@ -190,20 +130,20 @@ def read_barcode(well):
     if code:
         return (code, 'lsd')
     
-    code = decode_harris(well, thr_level = 128)
-    if code:
-        return (code, 'harris')
+#    code = decode_harris(well, thr_level = 128)
+#    if code:
+#        return (code, 'harris')
+#
+#    code = decode(well)
+#    if code:
+#        return (code, 'unchanged')
+#
+#    rotated = improve_fft(well)
+#    code = decode(rotated)
+#    if code:
+#        return (code, 'rotated')
 
-    code = decode(well)
-    if code:
-        return (code, 'unchanged')
-
-    rotated = improve_fft(well)
-    code = decode(rotated)
-    if code:
-        return (code, 'rotated')
-
-    return (None, 'failed')
+    return ('failed', 'failed')
 
 def decode_lsd(well, debug = False):
     lsd = cv2.createLineSegmentDetector()
@@ -291,7 +231,7 @@ def decode_harris(well, debug = False, harris = None, **kwargs):
         box = trim_contour(cntr.copy())
         code, binarized = warp(well, box, debug = True, **kwargs)
     else:
-        code, binarezed = None, well
+        code, binarized = None, well
     if debug: 
         contours = cv2.cvtColor(well, cv2.COLOR_GRAY2RGB)
         contours = cv2.drawContours(contours,[np.int0(box)],0,(255,0,0),1)
@@ -509,31 +449,4 @@ def intersection(L1, L2):
         return None
 
 def main():
-    #if not hasattr(logging, 'basicConfig'):
-    #    log.addHandler(logging.StreamHandler())
-    #    log.setLevel(logging.INFO)
-    #else:
-    logging.basicConfig(level=logging.INFO)
-    
-    
-    im = ImgMatrix(**pars3)
-    bcs, failed = im.run()
-    print 'written to "%s"' % im.csvfilename
-    for b in bcs:
-        print b
-    if failed:
-        print 'FAILED:'
-        for f in failed:
-            print f
-
-
-def cmd():
-    logging.basicConfig(level=logging.INFO, filename='imgmatrix.log')
-    log.addHandler(logging.StreamHandler())
-    from jipylib import cmdline
-    i = cmdline.CmdLineWrap(ImgMatrix)
-    i.run()
-    
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
     pass
