@@ -162,8 +162,8 @@ class PlateScanner(object):
         kwargs.setdefault('filemask', what + '%Y%m%d%H%M%S.bmp')
         try: 
             start = datetime.datetime.now()
-            # c = twainutl.TwainCtl(**kwargs)
-            # c.run()
+            c = twainutl.TwainCtl(**kwargs)
+            c.run()
             stop = datetime.datetime.now()
             print 'Scanned to file: %s (%s) <br />' % (c.filename, stop - start)
             self.bmpfilename = c.filename
