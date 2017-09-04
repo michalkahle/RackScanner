@@ -23,11 +23,13 @@ dm_read = DataMatrix(max_count = 1,
                      threshold = 5, 
                      deviation = 10,
                      shape = DataMatrix.DmtxSymbol12x12)
+origin = {96:[35,40], 24:[150,150]}
 well_size = 150
 well_shape = (150, 150)
 well_center = (75, 75)
 peephole = cv2.circle(np.zeros(well_shape), well_center, 30, 1, -1)
 min_size = 65
+dm_size = None
 
 class ImgMatrix(object):
     def __init__(self, filemask=None, **kwargs):
@@ -37,25 +39,19 @@ class ImgMatrix(object):
         self.wells = self.locate_wells_by_matching()
            
     def locate_wells_by_matching(self, debug = False):
-        template = cv2.imread("template.png")[:,:,0]
-        res = cv2.matchTemplate(self.img, template, cv2.TM_CCOEFF_NORMED)
-        b = 100
-        crop = res[b:-b,b:-b]
-        th, crop = cv2.threshold(crop, 0.6, 1, cv2.THRESH_TOZERO)
-        labeled, n = label(crop)
-        if debug:
-            plt.subplot(131); plt.imshow(self.img)
-            plt.subplot(132); plt.imshow(res)
-            plt.subplot(133); plt.imshow(crop)
-
-        if n == 96:
-            n_rows, n_cols = 8, 12
-        elif n == 24:
-            n_rows, n_cols = 4, 6
+        global dm_size
+        labeled, self.n, crop = self.matchTemplate("template_96.png", debug = debug)
+        b= 100
+        if self.n == 96:
+            n_rows, n_cols, dm_size = 8, 12, 12
         else:
-            raise ValueError("%s wells detected. Should be 24 or 96." % n)
-            return pd.DataFrame()
-        arr = np.round(center_of_mass(crop, labeled, range(1, n+1))).astype(int) + b
+            labeled, self.n, crop = self.matchTemplate("template_24.png", debug = debug)
+            if self.n == 24:
+                n_rows, n_cols, dm_size = 4, 6, 14
+            else:
+                raise ValueError("%s wells detected. Should be 24 or 96." % self.n)
+                return pd.DataFrame()
+        arr = np.round(center_of_mass(crop, labeled, range(1, self.n+1))).astype(int) + b
         df = pd.DataFrame(arr, columns = ("y", "x"))
         LETTERS = np.array(list('ABCDEFGH'))
         df["row"] = LETTERS[np.arange(n_rows).repeat(n_cols)]
@@ -63,9 +59,24 @@ class ImgMatrix(object):
         df["col"] = np.tile(np.arange(1, n_cols + 1), n_rows)
         df = df.set_index(['row', 'col'], drop=True)
         return df
-
+    
+    def matchTemplate(self, templ_file, debug = False):
+        template = cv2.imread(templ_file)[:,:,0]
+        res = cv2.matchTemplate(self.img, template, cv2.TM_CCOEFF_NORMED)
+        b = 100
+        crop = res[b:-b,b:-b]
+        th, crop = cv2.threshold(crop, 0.6, 1, cv2.THRESH_TOZERO)
+        if debug:
+            plt.subplot(131); plt.imshow(self.img)
+            plt.subplot(132); plt.imshow(res)
+            plt.subplot(133); plt.imshow(crop)
+            plt.show()
+        labeled, n = label(crop)
+        return labeled, n, crop
+        
     def get_well_matched(self, coo):
-        return self.img[coo.y+35:coo.y+185, coo.x+40: coo.x+190].T.copy(order = 'C')
+        o = origin[self.n]
+        return self.img[coo.y+o[0]:coo.y+o[0]+150, coo.x+o[1]: coo.x+o[1]+150].T.copy(order = 'C')
     #     ox, oy, dx, dy = (200, 160, 212, 206)
     #     py = oy + row * dy
     #     px = ox + col * dx
@@ -83,7 +94,8 @@ class ImgMatrix(object):
                 'failed' : (255,0,0),
                 'empty' : (0,0,0)
                 }[mark]
-        cv2.circle(self.dg, (coo.x+115, coo.y+110), 75, color = color, thickness = 10)
+        o = origin[self.n]
+        cv2.circle(self.dg, (coo.x+o[0]+75, coo.y+o[1]+75), 75, color = color, thickness = 10)
 
     def read_rack(self, debug = False):
         start = time()
@@ -97,6 +109,7 @@ class ImgMatrix(object):
         s = self.wells.groupby('method').size()
         duration = time() - start
         log.info((s, ' %.2f s' % duration))
+        self.dg_small = cv2.resize(self.dg, None,fx=0.2, fy=0.2)
 
         d = dict(s)
         d['time'] = duration
@@ -130,18 +143,18 @@ def read_barcode(well):
     if code:
         return (code, 'lsd')
     
-#    code = decode_harris(well, thr_level = 128)
-#    if code:
-#        return (code, 'harris')
-#
-#    code = decode(well)
-#    if code:
-#        return (code, 'unchanged')
-#
-#    rotated = improve_fft(well)
-#    code = decode(rotated)
-#    if code:
-#        return (code, 'rotated')
+    code = decode_harris(well, thr_level = 128)
+    if code:
+        return (code, 'harris')
+
+    code = decode(well)
+    if code:
+        return (code, 'unchanged')
+
+    rotated = improve_fft(well)
+    code = decode(rotated)
+    if code:
+        return (code, 'rotated')
 
     return ('failed', 'failed')
 
@@ -260,7 +273,7 @@ def warp(well, box, debug = False, **kwargs):
         src = box[1:4]
     M = cv2.getAffineTransform(src, np.array([[0,a],[0,0],[a,0]], dtype = "float32"))
     warped = cv2.warpAffine(well, M, (a,a)) #, flags=cv2.INTER_NEAREST
-    resized = cv2.resize(warped, (12,12))
+    resized = cv2.resize(warped, (dm_size, dm_size))
     # x, thr2 = cv2.threshold(resized, 80, 255, cv2.THRESH_BINARY)
     thr2 = threshold(resized, thr_level)
 
@@ -304,12 +317,17 @@ def border_check(arr):
 def border_check_fix(arr):
     borders = np.array([arr[-1,:], arr[:,0], arr[0,:], arr[:,-1]])
     borders[borders > 0] = 1 # scale down so that sums work
-    template = np.array([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                         [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
-                         [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]])
+    if dm_size == 12:
+        template = np.array([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                             [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+                             [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]])
+    elif dm_size == 14:
+        template = np.array([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                             [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+                             [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]])
     diffs = np.array(map(lambda x: np.logical_xor(borders, x).sum(1), template))
     wrong = diffs.min(0).sum()
-    if abs(borders.sum() - 36) > 4:
+    if abs(borders.sum() - 3 * dm_size) > 4:
         return False
     elif wrong > 4:
         return False
@@ -365,7 +383,7 @@ def decode(img, reader = None):
     height = img.shape[0]
     width = img.shape[1]
     code = reader.decode(width, height, img)
-    if code and re.match('\d{10}', code):
+    if code and re.match('(\w\w)?\d{10}', code):
         return code
     else:
         return None

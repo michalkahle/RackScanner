@@ -3,13 +3,11 @@ import os
 import logging
 import datetime
 import glob
-import urllib
-
-import  utils 
-#import imp
+sys.path.append('./lib')
+import utils 
 import imgmatrix
-#import buttonman
 import re
+import matplotlib as mpl
 
 #ROOT = os.path.dirname(__file__)
 ROOT = os.path.abspath(os.path.dirname(sys.argv[0])) #os.path.abspath(os.curdir)
@@ -27,6 +25,7 @@ DEMODIR = os.path.join(ROOT, 'demo') # where demo/example files are placed
 log = logging.getLogger()
 logfile = os.path.join(LOGDIR, 'platescan_%s.log' % datetime.date.today())
 log.addHandler(logging.FileHandler(logfile))
+log.setLevel(20)
 
 head_template = """
 <!DOCTYPE html>
@@ -45,28 +44,15 @@ head_template = """
 
 form_template = """
 <form name="scan" method="get">
+<input name="platebarcode" placeholder="Plate barcode"></input>
 <table class="form">
   <tr>
-    <td class="label">Plate barcode
-    <td><input id="platebarcode" name="platebarcode" type="%(platebarcode)s" />
-    <span class="hint">(None for new plate)
-  <tr>
-    <td>Last image file name:
-    <td><input id="imagefilename" name="bmpfilename" value="" size="80" />
+    <td><button type="submit" name="action" value="rack">Scan Rack</button> 
+    <td><button type="submit" name="action" value="vial">Scan Single Tube</button>
+    <td><button type="submit" name="action" value="csv">Upload CSV</button>
+    <td><button type="submit" name="action" value="test">Test</button>
 </table>
-<table class="form">
-  <tr>
-    <td><input type="submit" id="scanrack" name="scanrack" value="Scan Rack" /> 
-    <td><input type="submit" id="scanvial" name="scanvial" value="Scan Single Tube" />
-    <td><input type="submit" id="uploadcsv" name="uploadcsv" value="Upload CSV" />
-</table>
-       
-<input type="hidden" name="action" value="call" />
-<input type="hidden" name="module" value="platescan" />
-<input type="hidden" name="function" value="main" />
-  
 <input type="hidden" name="reload" value="%(reload)s" />
-<input type="hidden" name="submitted" value="1" />
 </form>
 """
 
@@ -76,7 +62,6 @@ foot_template = """
 """
 
 defaults = {
-    'title' : 'RackScanner 2.0',
     'reload' : '',
     'platebarcode' : '',
     'lastvialbarcode' : '',
@@ -98,60 +83,76 @@ avision600_vial = {
 	'bottom' : 0.5 }
 
 class PlateScanner(object):
-    def __init__(self, **kwargs_):
-        kwargs = defaults
-        kwargs.update(kwargs_)
-        self.reader = None
-        self.kwargs = kwargs
-        self.unquote_kwargs()
-        self.bmpfilename = kwargs.get('bmpfilename')
+    def __init__(self, **kwargs):
+        self.kwargs = defaults.copy()
+        self.kwargs.update(kwargs)
         self.csvfilename = None
+        self.reader = None
         self.messages = []
-        try:
-            log.setLevel(int(kwargs.get('loglevel', 20)))
-        except:
-            pass
 
     def run(self):
-        if self.kwargs.get('scanvial'):
-            self.run_vial()
-        elif self.kwargs.get('uploadcsv'):
-            self.run_uploadcsv()
-        elif self.kwargs.get('runcsv'):
-            self.run_csv()
-        elif self.kwargs.get('scanrack'):
-            self.run_plate()
-        self.display_form_page()
-        
-    def display_form_page(self):
-        import pprint
-        pp = pprint.PrettyPrinter(indent=4)
-        print head_template % self.kwargs
+        print head_template % {'title' : 'RackScanner 2.0'}
         print form_template % self.kwargs
-        if self.reader:
-            plate = self.reader.wells['code'].unstack()
-            html = ['<table class="plate">']
-            html += ['<tr><th>'] + ['<th>%s' % i for i in plate.columns]
-            for row in plate.index:
-                html.append('<tr><th>%s' % row)
-                for col in plate.columns:
-                    code = plate.loc[row, col]
-                    cls = '' if re.match('\d{10}', code) else ' class="%s"' % code
-                    html.append('<td%s>%s' % (cls, code))
-            html.append('</table>')
-            print '\n'.join(html)
+        
+        action = self.kwargs.get('action', 'rack')
+        if action =='rack':
+            self.run_plate()
+        elif action == 'vial':
+            self.run_vial()
+        elif action == 'csv':
+            self.run_uploadcsv()
+        elif action == 'test':
+            self.bmpfilename = 'bmp/rack20170619134114.bmp'
+#            self.bmpfilename = 'bmp/rack20170719103551_24well1.bmp'
+            self.run_plate()
+            
         if self.messages:
             print '<ul id="messages">\n'
             for m in self.messages:
                 print '<li>%s</li>' % m
             print '</ul>'
         
+        import pprint
+        pp = pprint.PrettyPrinter(indent=4)
         print '<pre>'
         pp.pprint(self.kwargs)
         print '</pre>'
-        
         print foot_template % self.kwargs
         
+    def run_plate(self):
+        self.inipars = self.kwargs.copy()
+        self.inipars.update(avision600)
+        
+        if not self.bmpfilename:
+            self.scan_image(what='rack', **self.inipars)
+        
+        if self.kwargs.get('reload'):
+            reload(imgmatrix)
+        self.reader = imgmatrix.ImgMatrix(filemask = self.bmpfilename)
+        self.reader.read_rack()
+        
+        plate = self.reader.wells['code'].unstack()
+        html = ['<table class="plate">']
+        html += ['<tr><th>'] + ['<th>%s' % i for i in plate.columns]
+        for row in plate.index:
+            html.append('<tr><th>%s' % row)
+            for col in plate.columns:
+                code = plate.loc[row, col]
+                cls = '' if re.match('\d{10}', code) else ' class="%s"' % code
+                html.append('<td%s>%s' % (cls, code))
+        html.append('</table>')
+        print '\n'.join(html)
+        
+
+        mpl.image.imsave('dg_pic.png', self.reader.dg_small)
+        print '<img src="dg_pic.png" />'
+        
+        base = 'rack-' + datetime.datetime.now().isoformat()[:19].replace('T','-').replace(':','-')
+        if self.kwargs.get('platebarcode'):
+            base += '_' + self.kwargs.get('platebarcode')
+        self.csvfilename = os.path.join(CSVDIR,  base + '.csv')
+        self.log('Barcodes written to file: <a href="file:///%s">%s</a><br />' % (self.csvfilename, self.csvfilename))
+                    
     def scan_image(self, **kwargs):
         what = kwargs.pop('what') # 'rack' or 'vial'
         
@@ -232,29 +233,6 @@ class PlateScanner(object):
         self.run_vial_reader()
         self.hide_bmpfile(self.bmpfilename)
         
-    def run_plate(self):
-        self.inipars = self.kwargs.copy()
-        self.inipars.update(avision600)
-        
-        if not self.bmpfilename: # bmpfilename is not usually supplied (only when debugging)
-            self.scan_image(what='rack', **self.inipars)
-        
-        if os.path.exists(self.bmpfilename):
-            if self.kwargs.get('reload'):
-                reload(imgmatrix)
-            self.reader = imgmatrix.ImgMatrix(filemask = self.bmpfilename)
-            self.reader.read_rack()
-    
-        base = 'rack-' + datetime.datetime.now().isoformat()[:19].replace('T','-').replace(':','-')
-        if self.kwargs.get('platebarcode'):
-            base += '_' + self.kwargs.platebarcode
-        self.csvfilename = os.path.join(CSVDIR,  base + '.csv')
-        self.log('Barcodes written to file: <a href="file:///%s">%s</a><br />' % (self.csvfilename, self.csvfilename))
-        
-            
-        #self.uploadcsv(csvfilename)
-        
-                    
     def write_csv_file(self):
         if not barcodes:
             barcodes = self._barcodes
@@ -265,12 +243,6 @@ class PlateScanner(object):
         f.write('\n'.join([','.join(str(rcb[0:2])) for rcb in barcodes]))
         f.close()
 
-    def unquote_kwargs(self, keys=['bmpfilename','uploadurl']):
-        """Eventual %xx encoded chars get replaced back by urllib.unquote"""
-        for k in keys:
-            if self.kwargs.get(k):
-                self.kwargs[k] = urllib.unquote(self.kwargs[k])
-                
     def log(self, message, level=logging.INFO):
         log.log(level, message)
         self.messages.append(message)
