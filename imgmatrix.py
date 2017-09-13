@@ -36,21 +36,21 @@ class ImgMatrix(object):
         self.filemask = filemask # filename of the plate image
         self.img = cv2.imread(filemask, 0).T # we will trasverse back the well images
         self.dg = cv2.cvtColor(self.img, cv2.COLOR_GRAY2RGB)
-        self.wells = self.locate_wells_by_matching()
            
     def locate_wells_by_matching(self, debug = False):
         global dm_size
-        labeled, self.n, crop = self.matchTemplate("template_96.png", debug = debug)
+        labeled, n, crop = self.matchTemplate("template_96.png", debug = debug)
         b= 100
-        if self.n == 96:
-            n_rows, n_cols, dm_size = 8, 12, 12
+        if n == 96:
+            self.n, n_rows, n_cols, dm_size = 96, 8, 12, 12
         else:
-            labeled, self.n, crop = self.matchTemplate("template_24.png", debug = debug)
-            if self.n == 24:
-                n_rows, n_cols, dm_size = 4, 6, 14
+            labeled, m, crop = self.matchTemplate("template_24.png", debug = debug)
+            if m == 24:
+                self.n, n_rows, n_cols, dm_size = 24, 4, 6, 14
             else:
-                raise ValueError("%s wells detected. Should be 24 or 96." % self.n)
-                return pd.DataFrame()
+                # raise ValueError("%s wells detected. Should be 24 or 96." % self.n)
+                print "%s and %s wells detected. Should be 24 or 96." % (n, m)
+                return None
         arr = np.round(center_of_mass(crop, labeled, range(1, self.n+1))).astype(int) + b
         df = pd.DataFrame(arr, columns = ("y", "x"))
         LETTERS = np.array(list('ABCDEFGH'))
@@ -99,6 +99,9 @@ class ImgMatrix(object):
 
     def read_rack(self, debug = False):
         start = time()
+        self.wells = self.locate_wells_by_matching()
+        if self.wells is None:
+            return None
         self.wells = self.wells.apply(self.read_well, axis = 1)
         fail = self.wells.loc[self.wells.method == 'failed']
         if not fail.empty:
