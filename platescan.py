@@ -102,8 +102,8 @@ class PlateScanner(object):
         elif action == 'csv':
             self.run_uploadcsv()
         elif action == 'test':
-            self.bmpfilename = 'bmp/rack20170619134114.bmp'
-#            self.bmpfilename = 'bmp/rack20170719103551_24well1.bmp'
+            self.bmpfilename = 'demo/rack_96_sample.bmp'
+#            self.bmpfilename = 'demo/rack_24_sample.bmp'
             self.run_plate()
             
         if self.messages:
