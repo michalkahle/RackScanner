@@ -1,0 +1,69 @@
+name: RackScanner
+channels:
+- conda-forge
+- defaults
+dependencies:
+- backports.shutil_get_terminal_size=1.0.0=py27_1
+- backports_abc=0.5=py27_0
+- ca-certificates=2017.4.17=0
+- certifi=2017.4.17=py27_0
+- colorama=0.3.9=py27_0
+- cycler=0.10.0=py27_0
+- decorator=4.1.2=py27_0
+- enum34=1.1.6=py27_1
+- freetype=2.7=vc9_1
+- functools32=3.2.3.2=py27_1
+- git=2.13.3=0
+- icu=58.1=vc9_1
+- ipython=5.4.1=py27_0
+- ipython_genutils=0.2.0=py27_0
+- jpeg=9b=vc9_0
+- libpng=1.6.28=vc9_0
+- libtiff=4.0.6=vc9_7
+- libwebp=0.5.2=vc9_7
+- matplotlib=2.0.2=py27_2
+- opencv=3.2.0=np113py27_204
+- openssl=1.0.2l=vc9_0
+- pandas=0.20.2=np113py27_1
+- pathlib2=2.3.0=py27_0
+- pickleshare=0.7.3=py27_0
+- prompt_toolkit=1.0.14=py27_0
+- pygments=2.2.0=py27_0
+- pyparsing=2.2.0=py27_0
+- pyqt=5.6.0=py27_4
+- pyreadline=2.1=py27_0
+- python-dateutil=2.6.1=py27_0
+- pytz=2017.2=py27_0
+- qt=5.6.2=vc9_1
+- scandir=1.5=py27_1
+- setuptools=36.2.2=py27_0
+- simplegeneric=0.8.1=py27_0
+- singledispatch=3.4.0.3=py27_0
+- sip=4.18=py27_1
+- six=1.10.0=py27_1
+- ssl_match_hostname=3.5.0.1=py27_1
+- tornado=4.5.2=py27_0
+- traitlets=4.3.2=py27_0
+- vc=9=0
+- wcwidth=0.1.7=py27_0
+- win_unicode_console=0.5=py27_0
+- wincertstore=0.2=py27_0
+- zlib=1.2.11=vc9_0
+- mkl=2017.0.3=0
+- numpy=1.13.1=py27_0
+- pip=9.0.1=py27_1
+- python=2.7.13=1
+- scipy=0.19.1=np113py27_0
+- vs2008_runtime=9.00.30729.5054=0
+- wheel=0.29.0=py27_0
+- pip:
+  - backports-abc==0.5
+  - backports.shutil-get-terminal-size==1.0.0
+  - backports.ssl-match-hostname==3.5.0.1
+  - ipython-genutils==0.2.0
+  - prompt-toolkit==1.0.14
+  - pydmtx==0.7.4b1
+  - twain==1.0.4
+  - win-unicode-console==0.5
+prefix: C:\Users\michal\AppData\Local\Continuum\Miniconda2\envs\RackScanner
+

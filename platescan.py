@@ -8,6 +8,11 @@ import utils
 import imgmatrix
 import re
 import matplotlib as mpl
+import twainutl
+import time
+
+reload(twainutl)
+reload(imgmatrix)
 
 #ROOT = os.path.dirname(__file__)
 ROOT = os.path.abspath(os.path.dirname(sys.argv[0])) #os.path.abspath(os.curdir)
@@ -50,7 +55,8 @@ form_template = """
     <td><button type="submit" name="action" value="rack">Scan Rack</button> 
     <td><button type="submit" name="action" value="vial">Scan Single Tube</button>
     <td><button type="submit" name="action" value="csv">Upload CSV</button>
-    <td><button type="submit" name="action" value="test">Test</button>
+    <td><button type="submit" name="action" value="test">Test Decoding</button>
+    <td><button type="submit" name="action" value="scan">Test Scanning</button>
 </table>
 <input type="hidden" name="reload" value="%(reload)s" />
 </form>
@@ -67,21 +73,6 @@ defaults = {
     'lastvialbarcode' : '',
 }
 
-avision600 = {  
-    'origin' : (170,210),
-    'matrixsize' : (12,8),
-    'boxsize' : (210,210),
-    'pixeltype' : 2,
-    'autocrop' : 0,
-    'left' : 0,
-    'top' : 0,
-    'right' : 3.5,
-    'bottom' : 5 }
-
-avision600_vial = { 
-    'right' : 0.5,
-	'bottom' : 0.5 }
-
 class PlateScanner(object):
     def __init__(self, **kwargs):
         self.kwargs = defaults.copy()
@@ -89,12 +80,13 @@ class PlateScanner(object):
         self.csvfilename = None
         self.reader = None
         self.messages = []
+        self.bmpfilename = None
 
     def run(self):
         print head_template % {'title' : 'RackScanner 2.0'}
         print form_template % self.kwargs
         
-        action = self.kwargs.get('action', 'rack')
+        action = self.kwargs.get('action')
         if action =='rack':
             self.run_plate()
         elif action == 'vial':
@@ -103,9 +95,13 @@ class PlateScanner(object):
             self.run_uploadcsv()
         elif action == 'test':
             self.bmpfilename = 'demo/rack_96_sample.bmp'
+            # self.bmpfilename = 'bmp/rack20170918040434.bmp'
 #            self.bmpfilename = 'demo/rack_24_sample.bmp'
             self.run_plate()
-            
+        elif action == 'scan':
+            self.scan_image(bottom = 0.5, right = 0.5)
+            print '<img src="bmp/%s" />' % self.filename
+
         if self.messages:
             print '<ul id="messages">\n'
             for m in self.messages:
@@ -120,11 +116,8 @@ class PlateScanner(object):
         print foot_template % self.kwargs
         
     def run_plate(self):
-        self.inipars = self.kwargs.copy()
-        self.inipars.update(avision600)
-        
         if not self.bmpfilename:
-            self.scan_image(what='rack', **self.inipars)
+            self.scan_image(rack_or_vial='rack')
         
         if self.kwargs.get('reload'):
             reload(imgmatrix)
@@ -153,37 +146,11 @@ class PlateScanner(object):
         self.csvfilename = os.path.join(CSVDIR,  base + '.csv')
         self.log('Barcodes written to file: <a href="file:///%s">%s</a><br />' % (self.csvfilename, self.csvfilename))
                     
-    def scan_image(self, **kwargs):
-        what = kwargs.pop('what') # 'rack' or 'vial'
-        
-        kwargs.setdefault('folder', BMPDIR)
-        kwargs.setdefault('resolution', 600.0)
-        
-        kwargs.setdefault('filemask', what + '%Y%m%d%H%M%S.bmp')
-        try: 
-            start = datetime.datetime.now()
-            c = twainutl.TwainCtl(**kwargs)
-            c.run()
-            stop = datetime.datetime.now()
-            print 'Scanned to file: %s (%s) <br />' % (c.filename, stop - start)
-            self.bmpfilename = c.filename
-        except:
-            msg = 'TwainCtl Error: (%s, %s)' % sys.exc_info()[:2]
-            self.log(msg, logging.ERROR)
-            print msg
+    def scan_image(self, rack_or_vial = 'rack'):
+        self.filename = rack_or_vial + time.strftime('%Y%m%d%H%M%S.bmp')
+        self.bmpfilename = os.path.join(BMPDIR, self.filename)
+        twainutl.scan(self.bmpfilename)
 
-    def run_vial_reader(self):
-        dic = self.inipars
-        dic['filemask'] = self.bmpfilename
-        dic['csvdir'] = CSVDIR 
-        reader = imgmatrix.ImgMatrix(**dic)
-        crb = reader.read_barcode(self.bmpfilename)
-        if crb and crb[2]:
-            
-            self.kwargs['lastvialbarcode'] = crb[2]
-        else:
-            self.log('run_vial_reader = no barcode found in %s' % self.bmpfilename)
-        
     def _get_last_csv_file(self):
         filename = None
         files = glob.glob(os.path.join(CSVDIR, '*.csv'))
@@ -223,15 +190,21 @@ class PlateScanner(object):
             os.system('start "%s" "%s"' % (filename, filename))
         
     def run_vial(self):
-        self.inipars = self.kwargs.copy()
-        self.inipars.update(avision600)
-        self.inipars.update(avision600_vial)
         if self.bmpfilename and not os.path.exists(self.bmpfilename):
             self.bmpfilename = None # could have been removed before other platescan browser page noticed
         if not self.bmpfilename: # bmpfilename is not usually supplied (only when debugging)
-            self.scan_image(what='vial', **self.inipars)
-        self.run_vial_reader()
-        self.hide_bmpfile(self.bmpfilename)
+            self.scan_image(rack_or_vial = 'vial')
+
+        dic = {}
+        dic['filemask'] = self.bmpfilename
+        dic['csvdir'] = CSVDIR 
+        reader = imgmatrix.ImgMatrix(**dic)
+        crb = reader.read_barcode(self.bmpfilename)
+        if crb and crb[2]:
+            
+            self.kwargs['lastvialbarcode'] = crb[2]
+        else:
+            self.log('run_vial_reader = no barcode found in %s' % self.bmpfilename)
         
     def write_csv_file(self):
         if not barcodes:
