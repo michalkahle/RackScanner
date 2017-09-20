@@ -26,8 +26,8 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             m = importlib.import_module(module)
 #            m = __import__(module, globals(), locals(), [fn])
-            if dic.get('reload'):
-                reload(m)
+            # if dic.get('reload'):
+            reload(m)
         except:
             self.send_error(404, 'Failed to import %s (%s, %s)' % ((module,) + sys.exc_info()[:2]))
             return None

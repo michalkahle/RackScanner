@@ -12,7 +12,6 @@ from math import atan, sqrt
 import matplotlib.pyplot as plt
 from scipy import stats
 
-log = logging.getLogger('jipylib.xpil.imgmatrix')
 statistics = pd.DataFrame()
 well_stats = pd.DataFrame()
 failed = pd.DataFrame()
@@ -111,7 +110,7 @@ class ImgMatrix(object):
             failed = pd.concat([failed, fail], axis = 1)
         s = self.wells.groupby('method').size()
         duration = time() - start
-        log.info((s, ' %.2f s' % duration))
+        logging.info((s, ' %.2f s' % duration))
         self.dg_small = cv2.resize(self.dg, None,fx=0.2, fy=0.2)
 
         d = dict(s)

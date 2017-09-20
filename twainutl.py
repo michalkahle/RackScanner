@@ -7,7 +7,7 @@ class TwainutlError(Exception):
     pass
 
 scanner_defaults = {  
-    'pixeltype' : 2,
+    'pixeltype' : 2, # 0: BW, 1: grayscale, 2: RGB
     'resolution' : 600.0,
     'autocrop' : 0,
     'left' : 0,
@@ -16,11 +16,12 @@ scanner_defaults = {
     'bottom' : 5,
 }
 
+# override defaults here
 scanners = {
     'AVA6' : {}
 }
 
-def scan(fullfilename = 'test.bmp', **kwargs):
+def scan(fullfilename = 'dg_pic.bmp', **kwargs):
     sm, scanner = open_scanner()
     try:
         adjust_scanner_properties(scanner, **kwargs)
