@@ -8,10 +8,10 @@ import time
 import cgi
 import traceback
 
-import twainutl
-import imgmatrix
-reload(twainutl)
-reload(imgmatrix)
+import scanner_controller
+import dm_reader
+reload(scanner_controller)
+reload(dm_reader)
 
 os.chdir(os.path.abspath(os.path.dirname(__file__)))
 
@@ -74,11 +74,11 @@ def run(**kwargs):
     action = params.get('action')
     if action =='rack':
         filename = create_filename(rack_or_vial='rack', barcode = platebarcode)
-        twainutl.scan(filename)
+        scanner_controller.scan(filename)
         decode_plate(filename)
     elif action == 'vial':
         filename = create_filename(rack_or_vial='vial')
-        twainutl.scan(filename)
+        scanner_controller.scan(filename)
         decode_vial(filename)
     elif action == 'csv':
         self.run_uploadcsv()
@@ -88,11 +88,6 @@ def run(**kwargs):
         # filename = 'demo/rack_24_sample.bmp'
         decode_plate(filename)
 
-    import pprint
-    pp = pprint.PrettyPrinter(indent=4)
-    print '<pre>'
-    pp.pprint(params)
-    print '</pre>'
     print foot_template
         
 def create_filename(rack_or_vial = 'rack', barcode = None):
@@ -103,7 +98,7 @@ def create_filename(rack_or_vial = 'rack', barcode = None):
     return filename
 
 def decode_vial(filename):
-    reader = imgmatrix.ImgMatrix(filemask = filename)
+    reader = dm_reader.ImgMatrix(filename = filename)
     crb = reader.read_barcode(filename)
     if crb and crb[2]:
         
@@ -112,10 +107,9 @@ def decode_vial(filename):
         logging.info('run_vial_reader = no barcode found in %s' % filename)
    
 def decode_plate(filename):
-    reader = imgmatrix.ImgMatrix(filemask = filename)
-    reader.read_rack()
-    write_table(reader.wells)
-    mpl.image.imsave('dg_pic.png', reader.dg_small)
+    wells, dg_pic = dm_reader.read(filename)
+    write_table(wells)
+    mpl.image.imsave('dg_pic.png', dg_pic)
     print '<img src="dg_pic.png" />'
     print '<input id=last_csv name=last_csv value="%s"/>' % (filename)
                     

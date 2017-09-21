@@ -22,19 +22,20 @@ class Handler(SimpleHTTPRequestHandler):
     
     def run_cgi(self, path, query):
         dic = self.parse_query(query)
-        module, fn = ('platescan', 'main')
+        module, function_to_call = ('web_app', 'main')
         try:
             m = importlib.import_module(module)
-#            m = __import__(module, globals(), locals(), [fn])
+#            m = __import__(module, globals(), locals(), [function_to_call])
             # if dic.get('reload'):
             reload(m)
         except:
             self.send_error(404, 'Failed to import %s (%s, %s)' % ((module,) + sys.exc_info()[:2]))
             return None
         try:
-            func = getattr(m, fn)
+            func = getattr(m, function_to_call)
         except:
-            self.send_error(404, 'Module %s has no function %s (%s %s)' % ((module, fn) + sys.exc_info()[:2]))
+            self.send_error(404, 'Module %s has no function %s (%s %s)' % 
+                ((module, function_to_call) + sys.exc_info()[:2]))
             return None
         oo = sys.stdout
         try:

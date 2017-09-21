@@ -1,7 +1,8 @@
 
 """ https://github.com/denisenkom/pytwain """    
-
-import twain
+import platform
+if platform.system() == 'Windows':
+    import twain
 
 class TwainutlError(Exception):
     pass

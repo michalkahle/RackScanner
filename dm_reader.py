@@ -1,6 +1,7 @@
 import os
 import logging
 from time import time
+from functools import partial
 
 import numpy as np
 import cv2
@@ -22,112 +23,121 @@ dm_read = DataMatrix(max_count = 1,
                      threshold = 5, 
                      deviation = 10,
                      shape = DataMatrix.DmtxSymbol12x12)
-origin = {96:[35,40], 24:[150,150]}
 well_size = 150
 well_shape = (150, 150)
 well_center = (75, 75)
 peephole = cv2.circle(np.zeros(well_shape), well_center, 30, 1, -1)
 min_size = 65
 dm_size = None
+dg_img = None
+n_wells = None
 
-class ImgMatrix(object):
-    def __init__(self, filemask=None, **kwargs):
-        self.filemask = filemask # filename of the plate image
-        self.img = cv2.imread(filemask, 0).T # we will trasverse back the well images
-        self.dg = cv2.cvtColor(self.img, cv2.COLOR_GRAY2RGB)
-           
-    def locate_wells_by_matching(self, debug = False):
-        global dm_size
-        labeled, n, crop = self.matchTemplate("template_96.png", debug = debug)
+def read(filename, vial = False, debug = False):
+    global dg_img
+    start = time()
+    img = cv2.imread(filename, 0)
+    img = img.T # looks better in notebook; we will trasverse back the well images
+    dg_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    wells = locate_wells(img, vial)
+    if wells is None:
+        return None
+    read_well_partial = partial(read_well, img = img)
+    wells = wells.apply(read_well_partial, axis = 1)
+    fail = wells.loc[wells.method == 'failed']
+    if not fail.empty:
+        fail = fail.apply(lambda x: x.set_value('well', get_well_matched(img, x)), axis = 1)
+        fail['file'] = filename
+        global failed
+        failed = pd.concat([failed, fail], axis = 1)
+    s = wells.groupby('method').size()
+    duration = time() - start
+    logging.info((s, ' %.2f s' % duration))
+    dg_img_small = cv2.resize(dg_img, None,fx=0.2, fy=0.2)
+
+    d = dict(s)
+    d['time'] = duration
+    d['file'] = filename
+    global statistics
+    statistics = statistics.append(d, ignore_index=True)
+
+    if debug: 
+        plt.imshow(dg_img)
+        plt.show()
+    return wells, dg_img_small
+
+def read_well(coo, img):
+    well = get_well_matched(img, coo)
+    code, method = read_barcode(well)
+    mark_well(coo, method)
+    return pd.Series([coo.x, coo.y, code, method], index=['x', 'y', 'code', 'method'])
+
+def locate_wells(img, vial = False, debug = False):
+    global dm_size
+    global n_wells
+    if vial:
+        n_wells, n_rows, n_cols, dm_size = 1, 1, 1, 12
+        harris = cv2.cornerHarris(img, 4, 1, 0.0)
+        thr = threshold(harris, 0.1)
+        arr = np.round(center_of_mass(thr)).astype(int) - np.array([75, 75])
+        arr = np.expand_dims(arr, axis=0)
+    else:
+        labeled, n_wells, crop = matchTemplate(img, "template_96.png", debug = debug)
         b= 100
-        if n == 96:
-            self.n, n_rows, n_cols, dm_size = 96, 8, 12, 12
+        if n_wells == 96:
+            n_wells, n_rows, n_cols, dm_size, origin = 96, 8, 12, 12, np.array([35,40])
         else:
-            labeled, m, crop = self.matchTemplate("template_24.png", debug = debug)
+            labeled, m, crop = matchTemplate(img, "template_24.png", debug = debug)
             if m == 24:
-                self.n, n_rows, n_cols, dm_size = 24, 4, 6, 14
+                n_wells, n_rows, n_cols, dm_size, origin = 24, 4, 6, 14, np.array([150,150])
             else:
-                # raise ValueError("%s wells detected. Should be 24 or 96." % self.n)
-                print "%s and %s wells detected. Should be 24 or 96." % (n, m)
+                # raise ValueError("%s wells detected. Should be 24 or 96." % n_wells)
+                print "%s and %s wells detected. Should be 24 or 96." % (n_wells, m)
                 return None
-        arr = np.round(center_of_mass(crop, labeled, range(1, self.n+1))).astype(int) + b
-        df = pd.DataFrame(arr, columns = ("y", "x"))
-        LETTERS = np.array(list('ABCDEFGH'))
-        df["row"] = LETTERS[np.arange(n_rows).repeat(n_cols)]
-        df = df.sort_values(["row", 'x'])
-        df["col"] = np.tile(np.arange(1, n_cols + 1), n_rows)
-        df = df.set_index(['row', 'col'], drop=True)
-        return df
+        arr = np.round(center_of_mass(crop, labeled, range(1, n_wells+1))).astype(int) + b + origin
+
+    df = pd.DataFrame(arr, columns = ("y", "x"))
+    LETTERS = np.array(list('ABCDEFGH'))
+    df["row"] = LETTERS[np.arange(n_rows).repeat(n_cols)]
+    df = df.sort_values(["row", 'x'])
+    df["col"] = np.tile(np.arange(1, n_cols + 1), n_rows)
+    df = df.set_index(['row', 'col'], drop=True)
+    return df
     
-    def matchTemplate(self, templ_file, debug = False):
-        template = cv2.imread(templ_file)[:,:,0]
-        res = cv2.matchTemplate(self.img, template, cv2.TM_CCOEFF_NORMED)
-        b = 100
-        crop = res[b:-b,b:-b]
-        th, crop = cv2.threshold(crop, 0.6, 1, cv2.THRESH_TOZERO)
-        if debug:
-            plt.subplot(131); plt.imshow(self.img)
-            plt.subplot(132); plt.imshow(res)
-            plt.subplot(133); plt.imshow(crop)
-            plt.show()
-        labeled, n = label(crop)
-        return labeled, n, crop
-        
-    def get_well_matched(self, coo):
-        o = origin[self.n]
-        return self.img[coo.y+o[0]:coo.y+o[0]+150, coo.x+o[1]: coo.x+o[1]+150].T.copy(order = 'C')
-    #     ox, oy, dx, dy = (200, 160, 212, 206)
-    #     py = oy + row * dy
-    #     px = ox + col * dx
-    #     well = self.img[py:py+200, px:px+200]
-    #     well[0:5, :] = 0; well[:, 0:5] = 0 # for diagnostics
-    #     return well[5:, 5:].copy(order = 'F')
+def matchTemplate(img, templ_file, debug = False):
+    template = cv2.imread(templ_file)[:,:,0]
+    res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
+    b = 100
+    crop = res[b:-b,b:-b]
+    th, crop = cv2.threshold(crop, 0.6, 1, cv2.THRESH_TOZERO)
+    if debug:
+        plt.subplot(131); plt.imshow(img)
+        plt.subplot(132); plt.imshow(res)
+        plt.subplot(133); plt.imshow(crop)
+        plt.show()
+    labeled, n_wells = label(crop)
+    return labeled, n_wells, crop
+    
+def get_well_matched(img, coo):
+    return img[coo.y:coo.y+150, coo.x: coo.x+150].T.copy(order = 'C')
+#     ox, oy, dx, dy = (200, 160, 212, 206)
+#     py = oy + row * dy
+#     px = ox + col * dx
+#     well = img[py:py+200, px:px+200]
+#     well[0:5, :] = 0; well[:, 0:5] = 0 # for diagnostics
+#     return well[5:, 5:].copy(order = 'F')
 
-    def mark_well(self, coo, mark):
-        color = {
-                'raw' : (0,255,0),
-                'lsd' : (150,150,0),
-                'harris' : (0,200,0),
-                'unchanged' : (50,100,0),
-                'rotated' : (100,100,0),
-                'failed' : (255,0,0),
-                'empty' : (0,0,0)
-                }[mark]
-        o = origin[self.n]
-        cv2.circle(self.dg, (coo.x+o[0]+75, coo.y+o[1]+75), 75, color = color, thickness = 10)
-
-    def read_rack(self, debug = False):
-        start = time()
-        self.wells = self.locate_wells_by_matching()
-        if self.wells is None:
-            return None
-        self.wells = self.wells.apply(self.read_well, axis = 1)
-        fail = self.wells.loc[self.wells.method == 'failed']
-        if not fail.empty:
-            fail = fail.apply(lambda x: x.set_value('well', self.get_well_matched(x)), axis = 1)
-            fail['file'] = self.filemask
-            global failed
-            failed = pd.concat([failed, fail], axis = 1)
-        s = self.wells.groupby('method').size()
-        duration = time() - start
-        logging.info((s, ' %.2f s' % duration))
-        self.dg_small = cv2.resize(self.dg, None,fx=0.2, fy=0.2)
-
-        d = dict(s)
-        d['time'] = duration
-        d['file'] = self.filemask
-        global statistics
-        statistics = statistics.append(d, ignore_index=True)
-
-        if debug: 
-            plt.imshow(self.dg)
-            plt.show()
-            
-    def read_well(self, coo):
-        well = self.get_well_matched(coo)
-        code, method = read_barcode(well)
-        self.mark_well(coo, method)
-        return pd.Series([coo.x, coo.y, code, method], index=['x', 'y', 'code', 'method'])
+def mark_well(coo, mark):
+    color = {
+            'raw' : (0,255,0),
+            'lsd' : (150,150,0),
+            'harris' : (0,200,0),
+            'unchanged' : (50,100,0),
+            'rotated' : (100,100,0),
+            'failed' : (255,0,0),
+            'empty' : (0,0,0)
+            }[mark]
+    global dg_img
+    cv2.circle(dg_img, (coo.x+75, coo.y+75), 75, color = color, thickness = 10)
 
 def read_barcode(well):
     x, thr = cv2.threshold(well, 128, 1, cv2.THRESH_BINARY)
