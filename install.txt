@@ -17,6 +17,12 @@ instalation of AVA6 driver in Windows 8.1:
 - select the installer directory Avision Scanner\Driver\TWAIN
 - you should get warning about insalling unsigned drivers. Proceed.
 - unplug, plug the USB cable. The scanner should work now.
+- only 32 bit TWAIN is supported!
+
+install twain driver:
+- go to http://www.lfd.uci.edu/~gohlke/pythonlibs/#twainmodule
+- download and install twain‑1.0.4‑cp27‑cp27m‑win32.whl
+
 
 install libdmtx and pydmtx:
 - download source and build libdmtx.dll
@@ -24,9 +30,4 @@ install libdmtx and pydmtx:
 - download wheel and install it
 - install "Visual C++ Redistributable Packages for Visual Studio 2013" as explained on the page
 
-install twain driver:
-- go to http://www.lfd.uci.edu/~gohlke/pythonlibs/#twainmodule
-- download and install twain‑1.0.4‑cp27‑cp27m‑win32.whl
 
-
-- only 32 bit TWAIN is supported!

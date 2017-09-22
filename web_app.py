@@ -7,6 +7,7 @@ import matplotlib as mpl
 import time
 import cgi
 import traceback
+import platform
 
 import scanner_controller
 import dm_reader
@@ -28,27 +29,24 @@ head_template = """
 <html>
 <head>
     <title>%(title)s</title>
-    <link type="text/css" rel="stylesheet" media="all" href="/platescan.css" />
+    <link type="text/css" rel="stylesheet" media="all" href="/rackscanner.css" />
 </head>
 <body>
     <h1>%(title)s</h1>
-    <p class="hint">Place the tube or rack with its A1 position to the upper left corner or the scanning area. </p>
+    <p class="hint">Place the tube or rack with its A1 position to the 
+    upper left corner or the scanning area. </p>
 """
 
 form_template = """
 <form name="scan" method="get">
 <input name="platebarcode" placeholder="Plate barcode"></input>
-<table class="form">
-  <tr>
-    <td><button type="submit" name="action" value="rack">Scan Rack</button> 
-    <td><button type="submit" name="action" value="vial">Scan Single Tube</button>
-    <td><button type="submit" name="action" value="csv">Upload CSV</button>
-    <td><button type="submit" name="action" value="test">Test</button>
-</table>
-</form>
+    <button type="submit" name="action" value="rack">Scan Rack</button> 
+    <button type="submit" name="action" value="vial">Scan Single Tube</button>
+    <button type="submit" name="action" value="test">Test</button>
 """
 
 foot_template = """
+</form>
 </body>
 </html>
 """
@@ -72,47 +70,30 @@ def run(**kwargs):
     print form_template % params
     
     action = params.get('action')
-    if action =='rack':
-        filename = create_filename(rack_or_vial='rack', barcode = platebarcode)
-        scanner_controller.scan(filename)
-        decode_plate(filename)
-    elif action == 'vial':
-        filename = create_filename(rack_or_vial='vial')
-        scanner_controller.scan(filename)
-        decode_vial(filename)
+    if action in ('rack', 'vial'):
+        if platform.system() == 'Windows':
+            filename = create_filename(action, platebarcode)
+            scanner_controller.scan(filename)
+        else:
+            filename = 'demo/rack_96_sample.bmp' if action == 'rack' else 'demo/vial_1ml_sample.bmp'
+        decode(filename, action == 'vial')
     elif action == 'csv':
-        self.run_uploadcsv()
+        uploadcsv(params['last_csv'])
     elif action == 'test':
         filename = 'demo/rack_96_sample.bmp'
         # filename = 'bmp/rack20170918040434.bmp'
         # filename = 'demo/rack_24_sample.bmp'
-        decode_plate(filename)
+        decode(filename)
 
     print foot_template
         
-def create_filename(rack_or_vial = 'rack', barcode = None):
+def create_filename(rack_or_vial, barcode = None):
     base = rack_or_vial + '-' + datetime.datetime.now().isoformat()[:19].replace('T','-').replace(':','-')
     if barcode:
         base += '_' + barcode
     filename = os.path.join('bmp',  base + '.bmp')
     return filename
 
-def decode_vial(filename):
-    reader = dm_reader.ImgMatrix(filename = filename)
-    crb = reader.read_barcode(filename)
-    if crb and crb[2]:
-        
-        params['lastvialbarcode'] = crb[2]
-    else:
-        logging.info('run_vial_reader = no barcode found in %s' % filename)
-   
-def decode_plate(filename):
-    wells, dg_pic = dm_reader.read(filename)
-    write_table(wells)
-    mpl.image.imsave('dg_pic.png', dg_pic)
-    print '<img src="dg_pic.png" />'
-    print '<input id=last_csv name=last_csv value="%s"/>' % (filename)
-                    
 def write_table(wells):
     plate = wells['code'].unstack()
     html = ['<table class="plate">']
@@ -126,51 +107,43 @@ def write_table(wells):
     html.append('</table>')
     print '\n'.join(html)
 
+def decode(filename, vial = False):
+    wells, dg_pic = dm_reader.read(filename, vial = vial)
+    write_table(wells)
+    mpl.image.imsave('dg_pic.png', dg_pic)
+    print '<img src="dg_pic.png" />'
+    csvfilename = 'csv/' + os.path.split(filename)[1].replace('bmp', 'csv')
+    wells.code.to_csv(csvfilename, sep = ';')
+    print '<input id=last_csv name=last_csv value="%s"/>' % (csvfilename)
+    print '<button type="submit" name="action" value="csv">Upload CSV</button>'
+
+def uploadcsv(filename=None):
+    print filename
+    return
 
 
-
-
-
-
-
-class PlateScanner(object):
-    def __init__(self, **kwargs):
-        self.csvfilename = None
-        self.messages = []
-
-    def uploadcsv(self, filename=None):
-        """Upload specified file to the server."""
-        uploadurl = params.get('uploadurl')
-        if not uploadurl:
-            logging.info('No url specified for csv file %s upload.' % filename)
-        else:
-            if filename is None:
-                #can be None if testing, then find the last csv file created
-                filename = self._get_last_csv_file()
-            #fn, url, user='', password='', filebodyfield='file', okmsg='', errdir=''):
-            try:
-                u = uploadfile.Uploader(url=uploadurl, user=params['user'], password=params['password'], 
-                                        filebodyfield=params['uploadfield'], printmsgs=False)
-                er = u.upload(filename)
-                #er = uploadfile.uploadfile(filename, uploadurl, user=params['user'], password=params['password'], filebodyfield=params['uploadfield'])
-                if er:
-                    logging.info('File %s upload to %s failed: %s' % (filename, uploadurl, er), logging.ERROR)
-                else:
-                    logging.info('CSV file %s uploaded to %s' % (filename, uploadurl))
-                logging.info(u.buf)
-            except:
-                logging.info('Failed to upload CSV file %s to %s (%s, %s)' % (filename, uploadurl, sys.exc_info()[0], sys.exc_info()[1]), logging.ERROR)
+    # uploadurl = params.get('uploadurl')
+    # if not uploadurl:
+    #     logging.info('No url specified for csv file %s upload.' % filename)
+    # else:
+    #     if filename is None:
+    #         #can be None if testing, then find the last csv file created
+    #         filename = self._get_last_csv_file()
+    #     #fn, url, user='', password='', filebodyfield='file', okmsg='', errdir=''):
+    #     try:
+    #         u = uploadfile.Uploader(url=uploadurl, user=params['user'], password=params['password'], 
+    #                                 filebodyfield=params['uploadfield'], printmsgs=False)
+    #         er = u.upload(filename)
+    #         #er = uploadfile.uploadfile(filename, uploadurl, user=params['user'], password=params['password'], filebodyfield=params['uploadfield'])
+    #         if er:
+    #             logging.info('File %s upload to %s failed: %s' % (filename, uploadurl, er), logging.ERROR)
+    #         else:
+    #             logging.info('CSV file %s uploaded to %s' % (filename, uploadurl))
+    #         logging.info(u.buf)
+    #     except:
+    #         logging.info('Failed to upload CSV file %s to %s (%s, %s)' % (filename, uploadurl, sys.exc_info()[0], sys.exc_info()[1]), logging.ERROR)
             
         
         
-    def write_csv_file(self):
-        if not barcodes:
-            barcodes = self._barcodes
-        if not filename:
-            filename = self.csvfilename
-        print filename
-        f = open(filename, 'w')
-        f.write('\n'.join([','.join(str(rcb[0:2])) for rcb in barcodes]))
-        f.close()
 
         
