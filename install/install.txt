@@ -1,11 +1,12 @@
 Windows:
 - install miniconda
-- add "C:\Users\michal\AppData\Local\Continuum\Miniconda2\sctipts" to path
-- create env ?
-
-
-- install git
+- in the Anaconda prompt:
 - clone https://github.com/michalkahle/RackScanner.git
+- cd to install directory, then run: 
+	conda env create -f conda_env.yaml
+	or
+	conda create --name RackScanner --file conda_env_win32.txt
+
 
 
 
