@@ -1,19 +1,17 @@
 ﻿Windows:
-- install miniconda
+- install miniconda from Continuum Analytics
 - in the Anaconda prompt:
 - clone https://github.com/michalkahle/RackScanner.git
 - cd to install directory, then run: 
 	conda env create -f conda_env.yaml
-	or if it fails:
-	conda create --name RackScanner --file conda_env_win32.txt
+	(or if it fails: conda create --name RackScanner --file conda_env_win32.txt)
 - run command: activate RackScanner
 - install binary packages by pip:
 	pip install pydmtx-0.7.4b1-cp27-none-win32.whl
 	pip install twain-1.0.4-cp27-cp27m-win32.whl
+- run vcredist_x86.exe
 - cd ..
-- python 
-
-
+- python http_server.py
 
 instalation of AVA6 driver in Windows 8.1:
 - restart the system with driver signature enforcement turned off!
@@ -25,15 +23,6 @@ instalation of AVA6 driver in Windows 8.1:
 - unplug, plug the USB cable. The scanner should work now.
 - only 32 bit TWAIN is supported!
 
-install twain driver:
-- go to http://www.lfd.uci.edu/~gohlke/pythonlibs/#twainmodule
-- download and install twain‑1.0.4‑cp27‑cp27m‑win32.whl
-
-
-install libdmtx and pydmtx:
-- download source and build libdmtx.dll
-- go to https://github.com/NaturalHistoryMuseum/dmtx-wrappers
-- download wheel and install it
-- install "Visual C++ Redistributable Packages for Visual Studio 2013" as explained on the page
-
-
+source of binaries:
+- twain‑1.0.4‑cp27‑cp27m‑win32.whl: http://www.lfd.uci.edu/~gohlke/pythonlibs/#twainmodule
+- pydmtx-0.7.4b1-cp27-none-win32.whl: https://github.com/NaturalHistoryMuseum/dmtx-wrappers
