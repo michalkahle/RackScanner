@@ -65,5 +65,4 @@ dependencies:
   - pydmtx==0.7.4b1
   - twain==1.0.4
   - win-unicode-console==0.5
-prefix: %userprofile%\Miniconda2\envs\RackScanner
 
