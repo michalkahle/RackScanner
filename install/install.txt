@@ -1,12 +1,17 @@
-Windows:
+﻿Windows:
 - install miniconda
 - in the Anaconda prompt:
 - clone https://github.com/michalkahle/RackScanner.git
 - cd to install directory, then run: 
 	conda env create -f conda_env.yaml
-	or
+	or if it fails:
 	conda create --name RackScanner --file conda_env_win32.txt
-
+- run command: activate RackScanner
+- install binary packages by pip:
+	pip install pydmtx-0.7.4b1-cp27-none-win32.whl
+	pip install twain-1.0.4-cp27-cp27m-win32.whl
+- cd ..
+- python 
 
 
 
