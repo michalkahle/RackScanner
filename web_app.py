@@ -76,14 +76,14 @@ def run(**kwargs):
             filename = create_filename(action, platebarcode)
             scanner_controller.scan(filename)
         else:
-            filename = 'demo/rack_96_sample.bmp' if action == 'rack' else 'demo/vial_1ml_sample.bmp'
+            filename = 'resources/rack_96_sample.bmp' if action == 'rack' else 'resources/vial_1ml_sample.bmp'
         decode(filename, action == 'vial')
     elif action == 'csv':
         uploadcsv(params['last_csv'])
     elif action == 'test':
-        filename = 'demo/rack_96_sample.bmp'
+        filename = 'resources/rack_96_sample.bmp'
         # filename = 'bmp/rack20170918040434.bmp'
-        # filename = 'demo/rack_24_sample.bmp'
+        # filename = 'resources/rack_24_sample.bmp'
         decode(filename)
 
     print foot_template
