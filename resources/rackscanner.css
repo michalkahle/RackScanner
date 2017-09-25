@@ -1,0 +1,18 @@
+body { 
+    background: lightgray;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+#logo {float:left; height: 36px; margin-right: 15px;}
+
+table.plate { font-size: 8pt; }
+.plate td { background: white; /*padding: 5px 10px*/; height: 22px; width: 80px; text-align: center }
+.plate td.failed { background: pink }
+.plate td.empty { background: #DDD }
+
+.hint { font-size: x-small; }
+
+#last_csv {display:block; width: 100%}
+
+
+

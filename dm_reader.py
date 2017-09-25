@@ -81,12 +81,12 @@ def locate_wells(img, vial = False, debug = False):
         arr = np.round(center_of_mass(thr)).astype(int) - np.array([75, 75])
         arr = np.expand_dims(arr, axis=0)
     else:
-        labeled, n_wells, crop = matchTemplate(img, "template_96.png", debug = debug)
+        labeled, n_wells, crop = matchTemplate(img, "resources/template_96.png", debug = debug)
         b= 100
         if n_wells == 96:
             n_wells, n_rows, n_cols, dm_size, origin = 96, 8, 12, 12, np.array([35,40])
         else:
-            labeled, m, crop = matchTemplate(img, "template_24.png", debug = debug)
+            labeled, m, crop = matchTemplate(img, "resources/template_24.png", debug = debug)
             if m == 24:
                 n_wells, n_rows, n_cols, dm_size, origin = 24, 4, 6, 14, np.array([150,150])
             else:

@@ -29,9 +29,10 @@ head_template = """
 <html>
 <head>
     <title>%(title)s</title>
-    <link type="text/css" rel="stylesheet" media="all" href="/rackscanner.css" />
+    <link type="text/css" rel="stylesheet" href="resources/rackscanner.css" />
 </head>
 <body>
+    <img src="resources/logo.png" id="logo"/>
     <h1>%(title)s</h1>
     <p class="hint">Place the tube or rack with its A1 position to the 
     upper left corner or the scanning area. </p>
