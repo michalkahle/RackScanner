@@ -12,8 +12,8 @@ RackScanner can currently control just one type of scanner - Avision AVA6 flatbe
 
 RackScanner first localizes the wells of the rack by pattern matching and recognizes the type of the rack. It then determines which wells are empty and which contain barcoded tubes. Attempts to locate and digitize barcodes are then made by three different algorithms using the excellent and fast [OpenCV](http://opencv.org) library. Decoding is done by [libdmtx](http://libdmtx.sourceforge.net) which also serves as fallback in case that previous attempts to locate the code fail.
 
-[scantelope](https://github.com/dmtaub/scantelope) has similar goals to RackScanner
+Original RackScanner was developed in 2011 by [jindrichjindrich](https://github.com/jindrichjindrich) and used at [CZ-OPENSCREEN](https://openscreen.cz/en) since then. The current update was motivated by the introduction of new tube design by Thermo Scientific with round Data Matrix modules which libdmtx has problems reading. During this work we found [Scantelope](https://github.com/dmtaub/scantelope) which has similar goals to RackScanner and inspired some of its algorithms. It does not, however, solve the redesigned barcode tubes problem.
 
-Step by step installation instructions are located in the [install.txt](install/install.txt) file.
+RackScanner was tested on Linux and Windows. Step by step installation instructions for Windows are located in the [install.txt](install/install.txt) file.
 
-License: 
+RackScanner is released under the [MIT license](https://opensource.org/licenses/MIT).
