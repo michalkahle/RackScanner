@@ -16,4 +16,6 @@ Original RackScanner was developed in 2011 by [jindrichjindrich](https://github.
 
 RackScanner was tested on Linux and Windows. Step by step installation instructions for Windows are located in the [install.txt](install/install.txt) file.
 
+Future work: We would be gratefull for feedback on performance of RackScanner with different scanners and plate/tube types. It could be ported to Python 3 using [pylibdmtx](https://github.com/NaturalHistoryMuseum/pylibdmtx). Algorithm using Harris Corner Detector followed by RANSAC could be tried to further improve success rate of the Data Matrix location.
+
 RackScanner is released under the [MIT license](https://opensource.org/licenses/MIT).
