@@ -1,5 +1,5 @@
 ﻿Windows:
-- install miniconda from Continuum Analytics
+- install miniconda from Continuum Analytics (32 bit in case you want to use the AVA6 TWAIN driver)
 - in the Anaconda prompt:
 - clone https://github.com/michalkahle/RackScanner.git
 - cd to install directory, then run: 
