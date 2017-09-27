@@ -7,3 +7,4 @@ dg_pic.png
 *.log
 
 .ipynb_checkpoints
+dm_reader_log.csv

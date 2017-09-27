@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 from scipy import stats
 
 statistics = pd.DataFrame()
-well_stats = pd.DataFrame()
 failed = pd.DataFrame()
+methods = ['empty', 'raw', 'lsd', 'harris', 'unchanged', 'rotated', 'failed']
 dm_read = DataMatrix(max_count = 1, 
                      timeout = 300, 
                      min_edge = 10, 
@@ -31,6 +31,15 @@ min_size = 65
 dm_size = None
 dg_img = None
 n_wells = None
+
+if not os.path.exists('dm_reader_log.csv'):
+    with open('dm_reader_log.csv', 'w') as f:
+        f.write(', '.join(['timestamp', 'ms', 'level', 'filename', 'duration'] 
+            + methods) + '\n')
+        
+logging.basicConfig(filename = 'dm_reader_log.csv', 
+                    format = '%(asctime)s, %(levelname)s, %(message)s', 
+                    level = logging.INFO)
 
 def read(filename, vial = False, debug = False):
     global dg_img
@@ -48,22 +57,18 @@ def read(filename, vial = False, debug = False):
         fail = fail.apply(lambda x: x.set_value('well', get_well_matched(img, x)), axis = 1)
         fail['file'] = filename
         global failed
-        failed = pd.concat([failed, fail], axis = 1)
-    s = wells.groupby('method').size()
+        failed = pd.concat([failed, fail], axis = 0)
     duration = time() - start
-    logging.info((s, ' %.2f s' % duration))
-    dg_img_small = cv2.resize(dg_img, None,fx=0.2, fy=0.2)
-
-    d = dict(s)
-    d['time'] = duration
-    d['file'] = filename
+    stats = wells.groupby('method').size()
+    stats = stats[methods].fillna(0).astype(int)
     global statistics
-    statistics = statistics.append(d, ignore_index=True)
-
+    statistics = statistics.append(stats, ignore_index=True)
+    stats = pd.Series((filename, duration), ('filename', 'duration')).append(stats).astype(str)
+    logging.info(', '.join(list(stats)))
     if debug: 
         plt.imshow(dg_img)
         plt.show()
-    return wells, dg_img_small
+    return wells, cv2.resize(dg_img, None,fx=0.2, fy=0.2)
 
 def read_well(coo, img):
     well = get_well_matched(img, coo)
@@ -142,8 +147,6 @@ def mark_well(coo, mark):
 def read_barcode(well):
     x, thr = cv2.threshold(well, 128, 1, cv2.THRESH_BINARY)
     thr = thr * peephole
-    global well_stats
-    well_stats = well_stats.append({'thr_sum': thr.sum()}, ignore_index=True)
     if thr.sum() < 500:
         return ('empty', 'empty')
 
@@ -242,11 +245,8 @@ def decode_raw(well, debug = False):
 def decode_harris(well, debug = False, harris = None, **kwargs):
     harris = cv2.cornerHarris(well, 4, 1, 0.0)
     skew = stats.skew(harris, axis = None)
-    if skew > 3.49:
+    if skew > 3.49: # element is square
         harris = cv2.morphologyEx(harris, cv2.MORPH_CLOSE, make_round_kernel(9))
-        element = 'square'
-    else:
-        element = 'round'
 
     thr = threshold(harris, 0.1)
     cntr = find_contour(thr)

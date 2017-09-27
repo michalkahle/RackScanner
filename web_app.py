@@ -20,10 +20,6 @@ for subdir in ['bmp', 'csv']:
     if not os.path.exists(subdir):
         os.mkdir(subdir)
 
-logging.basicConfig(filename = 'rackscanner.log', 
-                    format = '%(asctime)s %(levelname)s: %(message)s', 
-                    level = logging.INFO)
-
 head_template = """
 <!DOCTYPE html>
 <html>
@@ -114,7 +110,7 @@ def decode(filename, vial = False):
     mpl.image.imsave('dg_pic.png', dg_pic)
     print '<img src="dg_pic.png" />'
     csvfilename = 'csv/' + os.path.split(filename)[1].replace('bmp', 'csv')
-    wells.code.to_csv(csvfilename, sep = ';')
+    wells.loc[wells['method'] != 'empty'].code.to_csv(csvfilename, sep = ';')
     print '<input id=last_csv name=last_csv value="%s"/>' % (csvfilename)
     print '<button type="submit" name="action" value="csv">Upload CSV</button>'
 
@@ -124,25 +120,22 @@ def uploadcsv(filename=None):
 
 
     # uploadurl = params.get('uploadurl')
-    # if not uploadurl:
-    #     logging.info('No url specified for csv file %s upload.' % filename)
-    # else:
-    #     if filename is None:
-    #         #can be None if testing, then find the last csv file created
-    #         filename = self._get_last_csv_file()
-    #     #fn, url, user='', password='', filebodyfield='file', okmsg='', errdir=''):
-    #     try:
-    #         u = uploadfile.Uploader(url=uploadurl, user=params['user'], password=params['password'], 
-    #                                 filebodyfield=params['uploadfield'], printmsgs=False)
-    #         er = u.upload(filename)
-    #         #er = uploadfile.uploadfile(filename, uploadurl, user=params['user'], password=params['password'], filebodyfield=params['uploadfield'])
-    #         if er:
-    #             logging.info('File %s upload to %s failed: %s' % (filename, uploadurl, er), logging.ERROR)
-    #         else:
-    #             logging.info('CSV file %s uploaded to %s' % (filename, uploadurl))
-    #         logging.info(u.buf)
-    #     except:
-    #         logging.info('Failed to upload CSV file %s to %s (%s, %s)' % (filename, uploadurl, sys.exc_info()[0], sys.exc_info()[1]), logging.ERROR)
+#     if filename is None:
+#         #can be None if testing, then find the last csv file created
+#         filename = self._get_last_csv_file()
+#     #fn, url, user='', password='', filebodyfield='file', okmsg='', errdir=''):
+#     try:
+#         u = uploadfile.Uploader(url=uploadurl, user=params['user'], password=params['password'], 
+#                                 filebodyfield=params['uploadfield'], printmsgs=False)
+#         er = u.upload(filename)
+#         #er = uploadfile.uploadfile(filename, uploadurl, user=params['user'], password=params['password'], filebodyfield=params['uploadfield'])
+#         if er:
+#             logging.info('File %s upload to %s failed: %s' % (filename, uploadurl, er), logging.ERROR)
+#         else:
+#             logging.info('CSV file %s uploaded to %s' % (filename, uploadurl))
+#         logging.info(u.buf)
+#     except:
+#         logging.info('Failed to upload CSV file %s to %s (%s, %s)' % (filename, uploadurl, sys.exc_info()[0], sys.exc_info()[1]), logging.ERROR)
             
         
         
