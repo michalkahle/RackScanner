@@ -8,3 +8,5 @@ dg_pic.png
 
 .ipynb_checkpoints
 dm_reader_log.csv
+local
+settings.py

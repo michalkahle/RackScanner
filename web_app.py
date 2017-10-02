@@ -13,6 +13,10 @@ import scanner_controller
 import dm_reader
 reload(scanner_controller)
 reload(dm_reader)
+try:
+    import settings
+except ImportError:
+    import settings_template as settings
 
 os.chdir(os.path.abspath(os.path.dirname(__file__)))
 
@@ -112,32 +116,16 @@ def decode(filename, vial = False):
     csvfilename = 'csv/' + os.path.split(filename)[1].replace('bmp', 'csv')
     wells.loc[wells['method'] != 'empty'].code.to_csv(csvfilename, sep = ';')
     print '<input id=last_csv name=last_csv value="%s"/>' % (csvfilename)
-    print '<button type="submit" name="action" value="csv">Upload CSV</button>'
+    if settings.url:
+        print '<button type="submit" name="action" value="csv">Upload CSV</button>'
 
 def uploadcsv(filename=None):
-    print filename
-    return
-
-
-    # uploadurl = params.get('uploadurl')
-#     if filename is None:
-#         #can be None if testing, then find the last csv file created
-#         filename = self._get_last_csv_file()
-#     #fn, url, user='', password='', filebodyfield='file', okmsg='', errdir=''):
-#     try:
-#         u = uploadfile.Uploader(url=uploadurl, user=params['user'], password=params['password'], 
-#                                 filebodyfield=params['uploadfield'], printmsgs=False)
-#         er = u.upload(filename)
-#         #er = uploadfile.uploadfile(filename, uploadurl, user=params['user'], password=params['password'], filebodyfield=params['uploadfield'])
-#         if er:
-#             logging.info('File %s upload to %s failed: %s' % (filename, uploadurl, er), logging.ERROR)
-#         else:
-#             logging.info('CSV file %s uploaded to %s' % (filename, uploadurl))
-#         logging.info(u.buf)
-#     except:
-#         logging.info('Failed to upload CSV file %s to %s (%s, %s)' % (filename, uploadurl, sys.exc_info()[0], sys.exc_info()[1]), logging.ERROR)
-            
-        
-        
-
-        
+    import uploadfile
+    reload(uploadfile)
+    u = uploadfile.Uploader(settings.url)
+    u.user = settings.user
+    u.password = settings.password
+    u.filebodyfield = 'thefile'
+    u.printmsgs = False 
+    er = u.upload(filename)
+    return er
