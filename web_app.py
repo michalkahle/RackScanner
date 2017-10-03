@@ -15,6 +15,7 @@ reload(scanner_controller)
 reload(dm_reader)
 try:
     import settings
+    reload(settings)
 except ImportError:
     import settings_template as settings
 
@@ -120,12 +121,21 @@ def decode(filename, vial = False):
         print '<button type="submit" name="action" value="csv">Upload CSV</button>'
 
 def uploadcsv(filename=None):
-    import uploadfile
-    reload(uploadfile)
-    u = uploadfile.Uploader(settings.url)
-    u.user = settings.user
-    u.password = settings.password
-    u.filebodyfield = 'thefile'
-    u.printmsgs = False 
-    er = u.upload(filename)
-    return er
+    import requests
+    from settings import user, password, upload_url, login_url
+    print filename
+    s = requests.Session()
+    s.get(login_url)
+    login_data = {
+        'username' : user,
+        'password' : password,
+        'csrfmiddlewaretoken' : s.cookies['csrftoken']
+    }
+    s.post(login_url, login_data, headers={'Referer' : login_url})
+    data = {'upload_all': 'on', 
+            'background': 'on', 
+            'import_type': 'rack',
+           'csrfmiddlewaretoken' : s.cookies['csrftoken']}
+    files = {'thefile': (os.path.split(filename)[1], open(filename, 'rb'), 'text/csv')}
+    r4 = s.post(upload_url, data = data, files = files)
+    return r4
