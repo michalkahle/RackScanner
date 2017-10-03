@@ -80,7 +80,8 @@ def run(**kwargs):
             filename = 'resources/rack_96_sample.bmp' if action == 'rack' else 'resources/vial_1ml_sample.bmp'
         decode(filename, action == 'vial')
     elif action == 'csv':
-        uploadcsv(params['last_csv'])
+        status = uploadcsv(params['last_csv'])
+        print status
     elif action == 'test':
         filename = 'resources/rack_96_sample.bmp'
         # filename = 'bmp/rack20170918040434.bmp'
@@ -122,7 +123,7 @@ def decode(filename, vial = False):
 
 def uploadcsv(filename=None):
     import requests
-    from settings import user, password, upload_url, login_url
+    from settings import user, password, upload_url, login_url, status_url
     print filename
     s = requests.Session()
     s.get(login_url)
@@ -138,4 +139,11 @@ def uploadcsv(filename=None):
            'csrfmiddlewaretoken' : s.cookies['csrftoken']}
     files = {'thefile': (os.path.split(filename)[1], open(filename, 'rb'), 'text/csv')}
     r4 = s.post(upload_url, data = data, files = files)
-    return r4
+    time.sleep(0.1)
+    query = {
+        'application' : 'chemgen',
+        'task' : 'task',
+        'id' : re.search('async_key = "(.*)".*$', r4.text, re.MULTILINE).group(1)
+    }
+    r5 = s.get(status_url, params=query)
+    return r5.json()['status']
