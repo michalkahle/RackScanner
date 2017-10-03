@@ -41,7 +41,7 @@ head_template = """
 
 form_template = """
 <form name="scan" method="get">
-<input name="platebarcode" placeholder="Plate barcode"></input>
+<input name="platebarcode" placeholder="Plate barcode" autofocus></input>
     <button type="submit" name="action" value="rack">Scan Rack</button> 
     <button type="submit" name="action" value="vial">Scan Single Tube</button>
     <button type="submit" name="action" value="test">Test</button>
