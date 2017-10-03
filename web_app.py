@@ -85,10 +85,10 @@ def run(**kwargs):
     elif action == 'csv':
         uploadcsv(params['last_csv'])
     elif action == 'test':
-        filename = 'resources/rack_96_sample.bmp'
-        # filename = 'bmp/rack20170918040434.bmp'
+        # filename = 'resources/rack_96_sample.bmp'
+        filename = 'resources/vial_5ml_sample.bmp'
         # filename = 'resources/rack_24_sample.bmp'
-        decode(filename)
+        decode(filename, True)
 
     print foot_template
         
@@ -120,7 +120,7 @@ def decode(filename, vial = False):
     csvfilename = 'csv/' + os.path.split(filename)[1].replace('bmp', 'csv')
     wells.loc[wells['method'] != 'empty'].code.to_csv(csvfilename, sep = ';')
     print '<input id=last_csv name=last_csv value="%s"/>' % (csvfilename)
-    if settings.upload_url:
+    if settings.user:
         print '<button type="submit" name="action" value="csv">Upload CSV</button>'
 
 def uploadcsv(filename=None):

@@ -80,7 +80,7 @@ def locate_wells(img, vial = False, debug = False):
     global dm_size
     global n_wells
     if vial:
-        n_wells, n_rows, n_cols, dm_size = 1, 1, 1, 12
+        n_wells, n_rows, n_cols, dm_size = 1, 1, 1, [12, 14]
         harris = cv2.cornerHarris(img, 4, 1, 0.0)
         thr = threshold(harris, 0.1)
         arr = np.round(center_of_mass(thr)).astype(int) - np.array([75, 75])
@@ -89,11 +89,11 @@ def locate_wells(img, vial = False, debug = False):
         labeled, n_wells, crop = matchTemplate(img, "resources/template_96.png", debug = debug)
         b= 100
         if n_wells == 96:
-            n_wells, n_rows, n_cols, dm_size, origin = 96, 8, 12, 12, np.array([35,40])
+            n_wells, n_rows, n_cols, dm_size, origin = 96, 8, 12, [12], np.array([35,40])
         else:
             labeled, m, crop = matchTemplate(img, "resources/template_24.png", debug = debug)
             if m == 24:
-                n_wells, n_rows, n_cols, dm_size, origin = 24, 4, 6, 14, np.array([150,150])
+                n_wells, n_rows, n_cols, dm_size, origin = 24, 4, 6, [14], np.array([150,150])
             else:
                 # raise ValueError("%s wells detected. Should be 24 or 96." % n_wells)
                 print "%s and %s wells detected. Should be 24 or 96." % (n_wells, m)
@@ -285,20 +285,21 @@ def warp(well, box, debug = False, **kwargs):
         src = box[1:4]
     M = cv2.getAffineTransform(src, np.array([[0,a],[0,0],[a,0]], dtype = "float32"))
     warped = cv2.warpAffine(well, M, (a,a)) #, flags=cv2.INTER_NEAREST
-    resized = cv2.resize(warped, (dm_size, dm_size))
-    # x, thr2 = cv2.threshold(resized, 80, 255, cv2.THRESH_BINARY)
-    thr2 = threshold(resized, thr_level)
+    code = None
+    for size in dm_size:
+        resized = cv2.resize(warped, (size, size))
+        # x, thr2 = cv2.threshold(resized, 80, 255, cv2.THRESH_BINARY)
+        thr2 = threshold(resized, thr_level)
 
-    # thr2[thr2 > 0] = 1
-    if border_check_fix(thr2):
-        # thr2[thr2 > 0] = 255
-        barcode = cv2.copyMakeBorder(thr2, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value = 0)
-        barcode = cv2.resize(barcode, (80,80), interpolation = cv2.INTER_NEAREST)
-        barcode_cl = cv2.cvtColor(barcode, cv2.COLOR_GRAY2BGR)
-        reader = DataMatrix()
-        code = decode(barcode_cl, reader)
-    else:
-        code = None
+        # thr2[thr2 > 0] = 1
+        if border_check_fix(thr2, size):
+            # thr2[thr2 > 0] = 255
+            barcode = cv2.copyMakeBorder(thr2, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value = 0)
+            barcode = cv2.resize(barcode, (80,80), interpolation = cv2.INTER_NEAREST)
+            barcode_cl = cv2.cvtColor(barcode, cv2.COLOR_GRAY2BGR)
+            code = decode(barcode_cl, DataMatrix())
+            if code:
+                break
     if debug:
         binarized = cv2.cvtColor(warped, cv2.COLOR_GRAY2BGR)
         mask = cv2.resize(thr2, warped.shape, interpolation = cv2.INTER_NEAREST) / 255
@@ -326,20 +327,20 @@ def border_check(arr):
         return False
     return True
 
-def border_check_fix(arr):
+def border_check_fix(arr, size):
     borders = np.array([arr[-1,:], arr[:,0], arr[0,:], arr[:,-1]])
     borders[borders > 0] = 1 # scale down so that sums work
-    if dm_size == 12:
+    if size == 12:
         template = np.array([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
                              [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
                              [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]])
-    elif dm_size == 14:
+    elif size == 14:
         template = np.array([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
                              [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
                              [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]])
     diffs = np.array(map(lambda x: np.logical_xor(borders, x).sum(1), template))
     wrong = diffs.min(0).sum()
-    if abs(borders.sum() - 3 * dm_size) > 4:
+    if abs(borders.sum() - 3 * size) > 4:
         return False
     elif wrong > 4:
         return False

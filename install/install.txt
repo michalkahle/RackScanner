@@ -12,6 +12,7 @@
 - run vcredist_x86.exe
 - cd ..
 - python http_server.py
+- if you want to upload the csvs to a ChemGen server: create settings.py by copying settings_template.py and fill it up
 
 instalation of AVA6 driver in Windows 8.1:
 - restart the system with driver signature enforcement turned off!
