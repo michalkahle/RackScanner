@@ -75,13 +75,15 @@ def run(**kwargs):
     if action in ('rack', 'vial'):
         if platform.system() == 'Windows':
             filename = create_filename(action, platebarcode)
-            scanner_controller.scan(filename)
+            if action == 'vial':
+                scanner_controller.scan(filename, right=0.5, bottom=0.5)
+            else:
+                scanner_controller.scan(filename)
         else:
             filename = 'resources/rack_96_sample.bmp' if action == 'rack' else 'resources/vial_1ml_sample.bmp'
         decode(filename, action == 'vial')
     elif action == 'csv':
-        status = uploadcsv(params['last_csv'])
-        print status
+        uploadcsv(params['last_csv'])
     elif action == 'test':
         filename = 'resources/rack_96_sample.bmp'
         # filename = 'bmp/rack20170918040434.bmp'
@@ -118,13 +120,12 @@ def decode(filename, vial = False):
     csvfilename = 'csv/' + os.path.split(filename)[1].replace('bmp', 'csv')
     wells.loc[wells['method'] != 'empty'].code.to_csv(csvfilename, sep = ';')
     print '<input id=last_csv name=last_csv value="%s"/>' % (csvfilename)
-    if settings.url:
+    if settings.upload_url:
         print '<button type="submit" name="action" value="csv">Upload CSV</button>'
 
 def uploadcsv(filename=None):
     import requests
     from settings import user, password, upload_url, login_url, status_url
-    print filename
     s = requests.Session()
     s.get(login_url)
     login_data = {
@@ -132,18 +133,19 @@ def uploadcsv(filename=None):
         'password' : password,
         'csrfmiddlewaretoken' : s.cookies['csrftoken']
     }
-    s.post(login_url, login_data, headers={'Referer' : login_url})
+    r1 = s.post(login_url, login_data, headers={'Referer' : login_url})
     data = {'upload_all': 'on', 
             'background': 'on', 
             'import_type': 'rack',
            'csrfmiddlewaretoken' : s.cookies['csrftoken']}
     files = {'thefile': (os.path.split(filename)[1], open(filename, 'rb'), 'text/csv')}
     r4 = s.post(upload_url, data = data, files = files)
-    time.sleep(0.1)
+    time.sleep(1)
+    id = re.search('async_key = "(.*)".*$', r4.text, re.MULTILINE).group(1)
     query = {
-        'application' : 'chemgen',
-        'task' : 'task',
-        'id' : re.search('async_key = "(.*)".*$', r4.text, re.MULTILINE).group(1)
+        'application' : 'imports',
+        'task' : 'import_files',
+        'id' : id
     }
     r5 = s.get(status_url, params=query)
-    return r5.json()['status']
+    print '<p>%s upload status: %s</p>' % (filename, r5.json()['status'])
