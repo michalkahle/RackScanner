@@ -74,7 +74,7 @@ def run(**params):
             else:
                 scanner_controller.scan(filename)
         else:
-            filename = last_file(settings.images_dir)
+            filename = last_image(settings.images_dir)
         decode(filename, action == 'vial')
     elif action == 'csv':
         settings.upload(params['last_csv'])
@@ -112,12 +112,12 @@ def decode(filename, vial = False):
     if settings.user:
         print '<button type="submit" name="action" value="csv">Upload CSV</button>'
 
-def last_file(dirname):
-    max_mtime = 0
+def last_image(dirname):
+    max_mtime, max_file = 0, None
     for filename in os.listdir(dirname):
         full_path = os.path.join(dirname, filename)
         mtime = os.path.getmtime(full_path)
-        if mtime > max_mtime:
+        if mtime > max_mtime and filename.split('.')[-1] in ['bmp', 'png', 'tiff', 'jpeg']:
             max_mtime = mtime
             max_file = full_path
     return max_file

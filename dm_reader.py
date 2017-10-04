@@ -45,6 +45,8 @@ def read(filename, vial = False, debug = False):
     global dg_img
     start = time()
     img = cv2.imread(filename, 0)
+    if img is None:
+        raise Exception('Cannot open image "%s"' % filename)
     img = img.T # looks better in notebook; we will trasverse back the well images
     dg_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
     wells = locate_wells(img, vial)
