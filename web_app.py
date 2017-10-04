@@ -37,14 +37,10 @@ head_template = """
     <h1>%(title)s</h1>
     <p class="hint">Place the tube or rack with its A1 position to the 
     upper left corner or the scanning area. </p>
-"""
-
-form_template = """
 <form name="scan" method="get">
-<input name="platebarcode" placeholder="Plate barcode" autofocus></input>
-    <button type="submit" name="action" value="rack">Scan Rack</button> 
-    <button type="submit" name="action" value="vial">Scan Single Tube</button>
-    <button type="submit" name="action" value="test">Test</button>
+%(barcode)s
+<button type="submit" name="action" value="rack">%(verb)s Rack</button> 
+<button type="submit" name="action" value="vial">%(verb)s Single Tube</button>
 """
 
 foot_template = """
@@ -53,42 +49,35 @@ foot_template = """
 </html>
 """
 
-defaults = {
-    'reload' : '',
-}
-
-def main(**kwargs):
+def main(**params):
     """Called by http_server, kwargs are http get parameters"""
     try:
-        run(**kwargs)
+        run(**params)
     except:
         print '<pre>%s</pre>' % cgi.escape(traceback.format_exc())
 
-def run(**kwargs):
-    params = defaults.copy()
-    params.update(kwargs)
+def run(**params):
     platebarcode = params.get('platebarcode')
-    print head_template % {'title' : 'RackScanner 2.0'}
-    print form_template % params
+    print head_template % {
+        'title' : 'RackScanner 2.0', 
+        'verb' : {'scanner':'Scan', 'demo':'Demo', 'read_last':'Read'}[settings.mode],
+        'barcode' : '<input name="platebarcode" placeholder="Plate barcode" autofocus></input>' if settings.mode == 'scanner' else ''}
     
     action = params.get('action')
     if action in ('rack', 'vial'):
-        if platform.system() == 'Windows':
+        if settings.mode == 'demo':
+            filename = 'resources/rack_96_sample.bmp' if action == 'rack' else 'resources/vial_1ml_sample.bmp'
+        elif settings.mode == 'scanner':
             filename = create_filename(action, platebarcode)
             if action == 'vial':
                 scanner_controller.scan(filename, right=0.5, bottom=0.5)
             else:
                 scanner_controller.scan(filename)
         else:
-            filename = 'resources/rack_96_sample.bmp' if action == 'rack' else 'resources/vial_1ml_sample.bmp'
+            filename = last_file(settings.images_dir)
         decode(filename, action == 'vial')
     elif action == 'csv':
-        uploadcsv(params['last_csv'])
-    elif action == 'test':
-        # filename = 'resources/rack_96_sample.bmp'
-        filename = 'resources/vial_5ml_sample.bmp'
-        # filename = 'resources/rack_24_sample.bmp'
-        decode(filename, True)
+        settings.upload(params['last_csv'])
 
     print foot_template
         
@@ -116,36 +105,19 @@ def decode(filename, vial = False):
     wells, dg_pic = dm_reader.read(filename, vial = vial)
     write_table(wells)
     mpl.image.imsave('dg_pic.png', dg_pic)
-    print '<img src="dg_pic.png" />'
+    print '<img id="dg_pic" src="dg_pic.png" />'
     csvfilename = 'csv/' + os.path.split(filename)[1].replace('bmp', 'csv')
     wells.loc[wells['method'] != 'empty'].code.to_csv(csvfilename, sep = ';')
     print '<input id=last_csv name=last_csv value="%s"/>' % (csvfilename)
     if settings.user:
         print '<button type="submit" name="action" value="csv">Upload CSV</button>'
 
-def uploadcsv(filename=None):
-    import requests
-    from settings import user, password, upload_url, login_url, status_url
-    s = requests.Session()
-    s.get(login_url)
-    login_data = {
-        'username' : user,
-        'password' : password,
-        'csrfmiddlewaretoken' : s.cookies['csrftoken']
-    }
-    r1 = s.post(login_url, login_data, headers={'Referer' : login_url})
-    data = {'upload_all': 'on', 
-            'background': 'on', 
-            'import_type': 'rack',
-           'csrfmiddlewaretoken' : s.cookies['csrftoken']}
-    files = {'thefile': (os.path.split(filename)[1], open(filename, 'rb'), 'text/csv')}
-    r4 = s.post(upload_url, data = data, files = files)
-    time.sleep(1)
-    id = re.search('async_key = "(.*)".*$', r4.text, re.MULTILINE).group(1)
-    query = {
-        'application' : 'imports',
-        'task' : 'import_files',
-        'id' : id
-    }
-    r5 = s.get(status_url, params=query)
-    print '<p>%s upload status: %s</p>' % (filename, r5.json()['status'])
+def last_file(dirname):
+    max_mtime = 0
+    for filename in os.listdir(dirname):
+        full_path = os.path.join(dirname, filename)
+        mtime = os.path.getmtime(full_path)
+        if mtime > max_mtime:
+            max_mtime = mtime
+            max_file = full_path
+    return max_file

@@ -12,7 +12,5 @@ table.plate { font-size: 8pt; }
 
 .hint { font-size: x-small; }
 
-#last_csv {display:block; width: 100%}
-
-
-
+#dg_pic {display:block; margin: 10px 0;}
+#last_csv {width: 280px}

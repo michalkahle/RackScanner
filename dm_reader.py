@@ -478,6 +478,3 @@ def intersection(L1, L2):
         return x,y
     else:
         return None
-
-def main():
-    pass
