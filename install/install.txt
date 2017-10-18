@@ -1,4 +1,4 @@
-﻿Windows:
+Windows:
 - install miniconda from Continuum Analytics (32 bit in case you want to use the AVA6 TWAIN driver)
 - in the Anaconda prompt:
 - clone https://github.com/michalkahle/RackScanner.git
@@ -12,7 +12,8 @@
 - run vcredist_x86.exe
 - cd ..
 - python http_server.py
-- if you want to upload the csvs to a ChemGen server: create settings.py by copying settings_template.py and fill it up
+- create settings.py by copying settings_template.py
+- in settings.py change the mode of operation to one of 'scanner' or 'read_last'
 
 instalation of AVA6 driver in Windows 8.1:
 - restart the system with driver signature enforcement turned off!
