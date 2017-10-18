@@ -1,5 +1,5 @@
 # scanner settings
-mode = ['demo', 'scanner', 'read_last'][0]
+mode = 'demo' # 'scanner', 'read_last'
 images_dir = 'bmp/'
 
 # upload settings
