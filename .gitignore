@@ -5,9 +5,9 @@ csv/*
 Thumbs.db
 dg_pic.png
 *.log
-
 .ipynb_checkpoints
 dm_reader_log.csv
 local
 settings.py
 RackScanner-debug.ipynb
+*.egg-info

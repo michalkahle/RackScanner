@@ -5,24 +5,24 @@ from functools import partial
 
 import numpy as np
 import cv2
-from pydmtx import DataMatrix
-from scipy.ndimage import center_of_mass, label
+from pylibdmtx import pylibdmtx
 import pandas as pd
 import re
 from math import atan, sqrt
 import matplotlib.pyplot as plt
-from scipy import stats
+import scipy, scipy.ndimage
 
 statistics = pd.DataFrame()
 failed = pd.DataFrame()
 methods = ['empty', 'raw', 'lsd', 'harris', 'unchanged', 'rotated', 'failed']
-dm_read = DataMatrix(max_count = 1, 
-                     timeout = 300, 
-                     min_edge = 10, 
-                     max_edge = 32, 
-                     threshold = 5, 
+libdmtx_params = dict(max_count = 1,
+                     timeout = 300,
+                     min_edge = 10,
+                     max_edge = 100,
+                     threshold = 5,
                      deviation = 10,
-                     shape = DataMatrix.DmtxSymbol12x12)
+                     # shape = 1 #DataMatrix.DmtxSymbol12x12
+                     )
 well_size = 150
 well_shape = (150, 150)
 well_center = (75, 75)
@@ -34,11 +34,11 @@ n_wells = None
 
 if not os.path.exists('dm_reader_log.csv'):
     with open('dm_reader_log.csv', 'w') as f:
-        f.write(', '.join(['timestamp', 'ms', 'level', 'filename', 'duration'] 
+        f.write(', '.join(['timestamp', 'ms', 'level', 'filename', 'duration']
             + methods) + '\n')
-        
-logging.basicConfig(filename = 'dm_reader_log.csv', 
-                    format = '%(asctime)s, %(levelname)s, %(message)s', 
+
+logging.basicConfig(filename = 'dm_reader_log.csv',
+                    format = '%(asctime)s, %(levelname)s, %(message)s',
                     level = logging.INFO)
 
 def read(filename, vial = False, debug = False):
@@ -47,27 +47,29 @@ def read(filename, vial = False, debug = False):
     img = cv2.imread(filename, 0)
     if img is None:
         raise Exception('Cannot open image "%s"' % filename)
-    img = img.T # looks better in notebook; we will trasverse back the well images
+    img = img.T # looks better in notebook; we will transpose back the well images
     dg_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
     wells = locate_wells(img, vial)
     if wells is None:
         return None
     read_well_partial = partial(read_well, img = img)
     wells = wells.apply(read_well_partial, axis = 1)
-    fail = wells.loc[wells.method == 'failed']
+    fail = wells.loc[wells.method == 'failed'].copy()
     if not fail.empty:
-        fail = fail.apply(lambda x: x.set_value('well', get_well_matched(img, x)), axis = 1)
+        # fail = fail.apply(lambda x: x.set_value('well', get_well_matched(img, x)), axis = 1)
+        fail = fail.apply(lambda x: x.append(pd.Series({'well': get_well_matched(img, x)})), axis=1)
         fail['file'] = filename
         global failed
         failed = pd.concat([failed, fail], axis = 0)
     duration = time() - start
     stats = wells.groupby('method').size()
-    stats = stats[methods].fillna(0).astype(int)
+    stats = stats.reindex(methods)
+    stats = stats.fillna(0).astype(int)
     global statistics
     statistics = statistics.append(stats, ignore_index=True)
     stats = pd.Series((filename, duration), ('filename', 'duration')).append(stats).astype(str)
     logging.info(', '.join(list(stats)))
-    if debug: 
+    if debug:
         plt.imshow(dg_img)
         plt.show()
     return wells, cv2.resize(dg_img, None,fx=0.2, fy=0.2)
@@ -85,7 +87,7 @@ def locate_wells(img, vial = False, debug = False):
         n_wells, n_rows, n_cols, dm_size = 1, 1, 1, [12, 14]
         harris = cv2.cornerHarris(img, 4, 1, 0.0)
         thr = threshold(harris, 0.1)
-        arr = np.round(center_of_mass(thr)).astype(int) - np.array([75, 75])
+        arr = np.round(scipy.ndimage.center_of_mass(thr)).astype(int) - np.array([75, 75])
         arr = np.expand_dims(arr, axis=0)
     else:
         labeled, n_wells, crop = matchTemplate(img, "resources/template_96.png", debug = debug)
@@ -98,9 +100,9 @@ def locate_wells(img, vial = False, debug = False):
                 n_wells, n_rows, n_cols, dm_size, origin = 24, 4, 6, [14], np.array([150,150])
             else:
                 # raise ValueError("%s wells detected. Should be 24 or 96." % n_wells)
-                print "%s and %s wells detected. Should be 24 or 96." % (n_wells, m)
+                print("%s and %s wells detected. Should be 24 or 96." % (n_wells, m))
                 return None
-        arr = np.round(center_of_mass(crop, labeled, range(1, n_wells+1))).astype(int) + b + origin
+        arr = np.round(scipy.ndimage.center_of_mass(crop, labeled, range(1, n_wells+1))).astype(int) + b + origin
 
     df = pd.DataFrame(arr, columns = ("y", "x"))
     LETTERS = np.array(list('ABCDEFGH'))
@@ -109,7 +111,7 @@ def locate_wells(img, vial = False, debug = False):
     df["col"] = np.tile(np.arange(1, n_cols + 1), n_rows)
     df = df.set_index(['row', 'col'], drop=True)
     return df
-    
+
 def matchTemplate(img, templ_file, debug = False):
     template = cv2.imread(templ_file)[:,:,0]
     res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
@@ -121,9 +123,9 @@ def matchTemplate(img, templ_file, debug = False):
         plt.subplot(132); plt.imshow(res)
         plt.subplot(133); plt.imshow(crop)
         plt.show()
-    labeled, n_wells = label(crop)
+    labeled, n_wells = scipy.ndimage.label(crop)
     return labeled, n_wells, crop
-    
+
 def get_well_matched(img, coo):
     return img[coo.y:coo.y+150, coo.x: coo.x+150].T.copy(order = 'C')
 #     ox, oy, dx, dy = (200, 160, 212, 206)
@@ -156,10 +158,10 @@ def read_barcode(well):
     if code:
         return (code, 'raw')
 
-    code = decode_lsd(well)
-    if code:
-        return (code, 'lsd')
-    
+    # code = decode_lsd(well)
+    # if code:
+    #     return (code, 'lsd')
+
     code = decode_harris(well, thr_level = 128)
     if code:
         return (code, 'harris')
@@ -229,7 +231,7 @@ def decode_raw(well, debug = False):
 
     else:
         code, binarized = None, np.ones_like(well)
-        
+
 
     if debug:
         plt.subplot(131); plt.title('well'); plt.axis('off'); plt.imshow(well)
@@ -246,7 +248,7 @@ def decode_raw(well, debug = False):
 
 def decode_harris(well, debug = False, harris = None, **kwargs):
     harris = cv2.cornerHarris(well, 4, 1, 0.0)
-    skew = stats.skew(harris, axis = None)
+    skew = scipy.stats.skew(harris, axis = None)
     if skew > 3.49: # element is square
         harris = cv2.morphologyEx(harris, cv2.MORPH_CLOSE, make_round_kernel(9))
 
@@ -259,7 +261,7 @@ def decode_harris(well, debug = False, harris = None, **kwargs):
         code, binarized = warp(well, box, debug = True, **kwargs)
     else:
         code, binarized = None, well
-    if debug: 
+    if debug:
         contours = cv2.cvtColor(well, cv2.COLOR_GRAY2RGB)
         contours = cv2.drawContours(contours,[np.int0(box)],0,(255,0,0),1)
         contours = cv2.drawContours(contours, cntr, -1, (0,0,255), 1)
@@ -299,7 +301,7 @@ def warp(well, box, debug = False, **kwargs):
             barcode = cv2.copyMakeBorder(thr2, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value = 0)
             barcode = cv2.resize(barcode, (80,80), interpolation = cv2.INTER_NEAREST)
             barcode_cl = cv2.cvtColor(barcode, cv2.COLOR_GRAY2BGR)
-            code = decode(barcode_cl, DataMatrix())
+            code = decode(barcode_cl)
             if code:
                 break
     if debug:
@@ -340,7 +342,8 @@ def border_check_fix(arr, size):
         template = np.array([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
                              [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
                              [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]])
-    diffs = np.array(map(lambda x: np.logical_xor(borders, x).sum(1), template))
+    # diffs = np.array(map(lambda x: np.logical_xor(borders, x).sum(1), template))
+    diffs = np.array([np.logical_xor(borders, x).sum(1) for x in template])
     wrong = diffs.min(0).sum()
     if abs(borders.sum() - 3 * size) > 4:
         return False
@@ -357,18 +360,9 @@ def border_check_fix(arr, size):
         arr[:,-1] = borders[3]
         return True
 
-def extend_contour(img):
-    if img.dtype != 'uint8': img = img.astype('uint8')
-    dst, cntrs, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    cntrs = sorted(cntrs, key = cv2.contourArea, reverse = True)
-    for cntr in cntrs:
-        if cntr.min() > 1 and cntr.max() < well_size - 2:
-            return cntr
-    return cntr #None #np.array([[148,1],[1,1],[1,148],[148,148]], dtype=np.float32)
-
 def find_contour(img):
     if img.dtype != 'uint8': img = img.astype('uint8')
-    dst, cntrs, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    cntrs, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     cntrs = sorted(cntrs, key = cv2.contourArea, reverse = True)
     for cntr in cntrs:
         if cntr.min() > 1 and cntr.max() < well_size - 2:
@@ -378,7 +372,7 @@ def find_contour(img):
 def improve_fft(well):
     fft = np.fft.fftshift(np.fft.fft2(well))
     mask = np.zeros(well.shape)
-    center = tuple(x/2 for x in well.shape)
+    center = tuple(x//2 for x in well.shape)
     cv2.circle(mask, center, 60, color = 1, thickness = -1);
     cv2.circle(mask, center, 50, color = 0, thickness = -1);
     filtered = np.copy(fft) * mask
@@ -386,18 +380,18 @@ def improve_fft(well):
     maximum = cv2.minMaxLoc(blur)[3]
     try:
         theta = atan(float(maximum[1]-center[1])/float(maximum[0]-center[0]))
-    except ZeroDivisionError: 
+    except ZeroDivisionError:
         theta = 0
     M = cv2.getRotationMatrix2D(center, np.rad2deg(theta), 1)
     rotated = cv2.warpAffine(well, M, (well.shape[1], well.shape[0]))
     return rotated
 
-def decode(img, reader = None):
-    if reader is None:
-        reader = dm_read
+def decode(img):
     height = img.shape[0]
     width = img.shape[1]
-    code = reader.decode(width, height, img)
+    code = pylibdmtx.decode(img, **libdmtx_params)
+
+    code = code[0].data.decode('utf-8') if code else False
     if code and re.match('(\w\w)?\d{10}', code):
         return code
     else:
@@ -422,34 +416,32 @@ def trim_contour(cntr, size = 70):
         imax, imin = arr.argmax(), arr.argmin()
         cntp[dim, imax] = m
         cntp[dim, imin] = m
-        cntr[imax, 0] = center            
+        cntr[imax, 0] = center
         cntr[imin, 0] = center
     return box
 
 
-def threshold(img, thres = None):
-    if thres is None:
+def threshold(img, level = None):
+    if level is None or level == 0:
         tt = cv2.THRESH_OTSU
         level = 0
-    elif thres > 0 and thres < 1:
+    elif level > 0 and level < 1:
         tt = cv2.THRESH_BINARY
-        level = thres * img.max()
-    elif type(thres) == int:
+        level = level * img.max()
+    elif type(level) == int:
         tt = cv2.THRESH_BINARY
-        level = thres
-    x, thr = cv2.threshold(img, level, 255, tt)
-    # print 'level: %s' % x
+    level, thr = cv2.threshold(img, level, 255, tt)
     return thr
 
 def fit_box(cntr):
-    box = cv2.boxPoints(cv2.minAreaRect(cntr))    
+    box = cv2.boxPoints(cv2.minAreaRect(cntr))
     u = box[0] - box [1]
     v = box[2] - box [1]
     return box, u, v, cv2.norm(u), cv2.norm(v)
 
 def make_round_kernel(size):
     kernel = np.zeros((size, size), np.uint8)
-    r = size / 2
+    r = size // 2
     kernel = cv2.circle(kernel, (r, r), r, color = 1, thickness = -1)
     return kernel
 
