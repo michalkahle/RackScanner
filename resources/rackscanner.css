@@ -9,8 +9,10 @@ table.plate { font-size: 8pt; }
 .plate td { background: white; /*padding: 5px 10px*/; height: 22px; width: 80px; text-align: center }
 .plate td.failed { background: pink }
 .plate td.empty { background: #DDD }
+.plate td.check { background: yellow }
 
 .hint { font-size: x-small; }
 
 #dg_pic {display:block; margin: 10px 0;}
 #last_csv {width: 280px}
+#check_codes {vertical-align: middle;}

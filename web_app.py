@@ -8,6 +8,7 @@ import time
 import cgi
 import traceback
 import platform
+import pandas as pd
 
 import scanner_controller
 import dm_reader
@@ -41,6 +42,8 @@ head_template = """
 %(barcode)s
 <button type="submit" name="action" value="rack">%(verb)s Rack</button> 
 <button type="submit" name="action" value="vial">%(verb)s Single Tube</button>
+<input type="checkbox" name="check_codes" id="check_codes" %(check)s>
+<label for="check_codes">check codes</label>
 """
 
 foot_template = """
@@ -58,11 +61,14 @@ def main(**params):
 
 def run(**params):
     platebarcode = params.get('platebarcode')
+    check_codes = True if params.get('check_codes') else False
     print head_template % {
-        'title' : 'RackScanner 2.0', 
+        'title' : 'RackScanner 2.1', 
         'verb' : {'scanner':'Scan', 'demo':'Demo', 'read_last':'Read'}[settings.mode],
-        'barcode' : '<input name="platebarcode" placeholder="Plate barcode" autofocus></input>' if settings.mode == 'scanner' else ''}
-    
+        'barcode' : '<input name="platebarcode" placeholder="Plate barcode" autofocus></input>' if settings.mode == 'scanner' else '',
+        'check' : 'checked' if check_codes else ''
+        }
+
     action = params.get('action')
     if action in ('rack', 'vial'):
         if settings.mode == 'demo':
@@ -75,7 +81,7 @@ def run(**params):
                 scanner_controller.scan(filename)
         else:
             filename = last_image(settings.images_dir)
-        decode(filename, action == 'vial')
+        decode(filename, action == 'vial', check_codes=check_codes)
     elif action == 'csv':
         settings.upload(params['last_csv'])
 
@@ -88,7 +94,10 @@ def create_filename(rack_or_vial, barcode = None):
     filename = os.path.join('bmp',  base + '.bmp')
     return filename
 
-def write_table(wells):
+def write_table(wells, check_codes=False):
+    if check_codes:
+        codes = pd.to_numeric(wells['code'].str.extract('(\d+)', expand=False))
+        outliers = ((codes - codes.median()).abs() > 47).unstack()
     plate = wells['code'].unstack()
     html = ['<table class="plate">']
     html += ['<tr><th>'] + ['<th>%s' % i for i in plate.columns]
@@ -96,14 +105,19 @@ def write_table(wells):
         html.append('<tr><th>%s' % row)
         for col in plate.columns:
             code = plate.loc[row, col]
-            cls = '' if re.match('\d{10}', code) else ' class="%s"' % code
+            if check_codes and outliers.loc[row, col]:
+                cls = ' class="check"'
+            elif re.match('\d{10}', code):
+                cls = ''
+            else:
+                cls = ' class="%s"' % code
             html.append('<td%s>%s' % (cls, code))
     html.append('</table>')
     print '\n'.join(html)
 
-def decode(filename, vial = False):
+def decode(filename, vial = False, check_codes=False):
     wells, dg_pic = dm_reader.read(filename, vial = vial)
-    write_table(wells)
+    write_table(wells, check_codes)
     mpl.image.imsave('dg_pic.png', dg_pic)
     print '<img id="dg_pic" src="dg_pic.png" />'
     csvfilename = 'csv/' + os.path.split(filename)[1].replace('bmp', 'csv')
