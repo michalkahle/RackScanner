@@ -362,7 +362,7 @@ def border_check_fix(arr, size):
 
 def find_contour(img):
     if img.dtype != 'uint8': img = img.astype('uint8')
-    cntrs, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    img2, cntrs, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     cntrs = sorted(cntrs, key = cv2.contourArea, reverse = True)
     for cntr in cntrs:
         if cntr.min() > 1 and cntr.max() < well_size - 2:

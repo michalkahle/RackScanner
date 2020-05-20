@@ -4,6 +4,7 @@ import datetime
 import re
 import scanner_controller
 import dm_reader
+import matplotlib as mpl
 import importlib
 importlib.reload(scanner_controller)
 importlib.reload(dm_reader)
