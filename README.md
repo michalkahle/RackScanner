@@ -14,8 +14,51 @@ RackScanner first localizes the wells of the rack by pattern matching and recogn
 
 Original RackScanner was developed in 2011 by [jindrichjindrich](https://github.com/jindrichjindrich) and used at [CZ-OPENSCREEN](https://openscreen.cz/en) since then. The current update was motivated by the introduction of new tube design by Thermo Scientific with round Data Matrix modules which libdmtx has problems reading. During this work we found [Scantelope](https://github.com/dmtaub/scantelope) which has similar goals to RackScanner and inspired one of its algorithms. It does not, however, solve the redesigned barcode tubes problem.
 
-RackScanner was tested on Linux and Windows. Step by step installation instructions for Windows are located in the [install.txt](install/install.txt) file.
+RackScanner was tested on Linux and Windows.
 
-Future work: We would be gratefull for feedback on performance of RackScanner with different scanners and plate/tube types. It could be ported to Python 3 using [pylibdmtx](https://github.com/NaturalHistoryMuseum/pylibdmtx). Algorithm using Harris Corner Detector followed by RANSAC could be tried to further improve success rate of the Data Matrix location.
+We would be gratefull for feedback on performance of RackScanner with different scanners and plate/tube types.
 
 RackScanner is released under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Installation instructions:
+- install miniconda from Continuum Analytics (32 bit in case you want to use the AVA6 TWAIN driver)
+- in the terminal or Anaconda prompt (Windows):
+```
+git clone https://github.com/michalkahle/RackScanner.git
+cd RackScanner/install
+conda env create --file conda_env.yaml
+conda activate rackscanner3
+```
+- on Linux install libdmtx and pylibdmtx:
+```
+sudo apt install libdmtx0a
+pip install pylibdmtx
+```
+- on Windows install binary packages by pip:
+```
+pip install pydmtx-0.7.4b1-cp27-none-win32.whl
+pip install twain-1.0.4-cp27-cp27m-win32.whl
+vcredist_x86.exe
+```
+- cd to parent directory and run http server:
+```
+cd ..
+python http_server.py
+```
+- open browser at http://localhost:8000/ and test the functionality in demo mode
+- create `settings.py` by copying `settings_template.py`
+- in `settings.py` change the mode of operation to one of 'scanner' or 'read_last'
+
+## Instalation of AVA6 driver in Windows:
+- restart the system with driver signature enforcement turned off!
+- run the original installer from the CD and install TWAIN and W?? driver (might not be necessary)
+- from Device Manager start the driver update process
+- select driver manually -> have a disk
+- select the installer directory Avision Scanner\Driver\TWAIN
+- you should get warning about insalling unsigned drivers. Proceed.
+- unplug, plug the USB cable. The scanner should work now.
+- only 32 bit TWAIN is supported by the driver!
+
+source of binaries:
+- twain‑1.0.4‑cp27‑cp27m‑win32.whl: http://www.lfd.uci.edu/~gohlke/pythonlibs/#twainmodule
+- pydmtx-0.7.4b1-cp27-none-win32.whl: https://github.com/NaturalHistoryMuseum/dmtx-wrappers
