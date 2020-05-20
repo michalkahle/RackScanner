@@ -1,70 +1,50 @@
 import sys
-from BaseHTTPServer import HTTPServer
-from SimpleHTTPServer import SimpleHTTPRequestHandler
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 import importlib
-import StringIO
-import urllib
+import io
+import urllib.request, urllib.parse, urllib.error
+import traceback
+import web_app
 
-class Handler(SimpleHTTPRequestHandler):
-    def send_head(self):
-        """Version of send_head that support runing python modules."""
-        if self.client_address[0] <> '127.0.0.1':
+class RequestHandler(SimpleHTTPRequestHandler):
+    def do_GET(self):
+        if self.client_address[0] != '127.0.0.1':
             self.send_error(501, 'Only local host allowed')
             return False
         path, _, query = self.path.partition('?')
-        if self.is_cgi(path):
-            return self.run_cgi(path, query)
+        if path == '/':
+            self.do_CGI(query)
         else:
-            return SimpleHTTPRequestHandler.send_head(self)
+            return super().do_GET()
 
-    def is_cgi(self, path):
-        return True if path in ('/', '/platescan', '/test') else False
-    
-    def run_cgi(self, path, query):
+    def do_CGI(self, query):
         dic = self.parse_query(query)
-        module, function_to_call = ('web_app', 'main')
+        sdout = sys.stdout
+        importlib.reload(web_app)
+        stringio = io.StringIO()
+        sys.stdout = stringio
         try:
-            m = importlib.import_module(module)
-#            m = __import__(module, globals(), locals(), [function_to_call])
-            # if dic.get('reload'):
-            reload(m)
+            web_app.run(**dic)
         except:
-            self.send_error(404, 'Failed to import %s (%s, %s)' % ((module,) + sys.exc_info()[:2]))
-            return None
-        try:
-            func = getattr(m, function_to_call)
-        except:
-            self.send_error(404, 'Module %s has no function %s (%s %s)' % 
-                ((module, function_to_call) + sys.exc_info()[:2]))
-            return None
-        oo = sys.stdout
-        try:
-            io = StringIO.StringIO()
-            sys.stdout = io
-            res = func(**dic)
-            defaults = {'Content-Type':'text/html'}
-            if isinstance(res, dict):
-                defaults.update(res)
-            self.send_response(200)
-            self.send_header("Content-type", defaults['Content-Type'])
-            self.send_header("Content-Length", str(io.len))
-            self.end_headers()
-            io.seek(0)
-            self.copyfile(io, self.wfile)
+            print('<pre>%s</pre>' % traceback.format_exc())
         finally:
-            sys.stdout = oo
-        return None
-    
+            self.send_response(200)
+            self.send_header("Content-type", 'text/html')
+            self.end_headers()
+            self.wfile.write(stringio.getvalue().encode('utf-8'))
+            sys.stdout = sdout
+            stringio.close()
+
     def parse_query(self, query):
         dic = {}
-        query = urllib.unquote(query)
+        query = urllib.parse.unquote(query)
         for par in query.replace('+',' ').split('&'):
             kv = par.split('=', 1)
             if len(kv) == 2:
                 name, value = kv
-                if dic.has_key(name):
+                if name in dic:
                     oldvalue = dic[name]
-                    if isinstance(oldvalue, basestring):
+                    if isinstance(oldvalue, str):
                         dic[name] = [oldvalue, value]
                     else:
                         dic[name].append(value)
@@ -78,7 +58,7 @@ if __name__ == '__main__':
     else:
         port = 8000
     server_address = ('127.0.0.1', port)
-    httpd = HTTPServer(server_address, Handler)
+    httpd = HTTPServer(server_address, RequestHandler)
     sa = httpd.socket.getsockname()
-    print "Serving HTTP on", sa[0], "port", sa[1], "..."
+    print("Serving HTTP on", sa[0], "port", sa[1], "...")
     httpd.serve_forever()

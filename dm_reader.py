@@ -10,7 +10,7 @@ import pandas as pd
 import re
 from math import atan, sqrt
 import matplotlib.pyplot as plt
-import scipy, scipy.ndimage
+import scipy, scipy.ndimage, scipy.stats
 
 statistics = pd.DataFrame()
 failed = pd.DataFrame()
